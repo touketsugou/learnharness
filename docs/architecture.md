@@ -155,6 +155,12 @@ Packaged Electron launches a private standalone Next child on loopback, sets dat
 
 API environment values override saved keys. Packaged subscription refresh credentials stay in Electron main; web/dev uses server-owned connection files. Subscription routes do not fall back to API billing. [Claude Code](claude-code.md) retains native CLI authentication/routing but bridges LearnHarness tools; [custom endpoints](custom-providers.md) bind authorization to URL/mode and resolve settings per operation. Neither route has inferred zero-dollar pricing. [Accounting](compaction-accounting.md) owns context/cache/cost semantics.
 
+### Cloud mode and the native client
+
+`LH_REMOTE_TOKEN` turns the server into a single-user network host ([Cloud server](cloud-server.md)). [`proxy.ts`](../proxy.ts) then gates every page and API request on the Bearer token or a cookie derived from it ([`remote-access.ts`](../src/server/remote-access.ts)); cookie writes must be same-origin, and `/login` is a static route outside the root layout. Boot ([`instrumentation.ts`](../instrumentation.ts)) refuses a weak or desktop-combined token and seeds the uploads-only file policy once. ChatGPT subscription sign-in is unavailable there. This is token access to one owner's server, not multi-user authentication.
+
+The iOS client does not re-derive the transcript. [`native-view.ts`](../src/server/native-view.ts) projects the record plus the live turn with the web canon (`projectView`, the shared [`live-turn.ts`](../src/core/live-turn.ts) reducer, the pending-question/problem folds) and redacts unanswered answers and unrevealed model solutions. `/api/native/chats/:id/stream` attaches to the turn handle in-process and sends snapshot → patch → settled frames; idle-time changes still arrive through `/api/events`. Native answers carry the raw selection; the server shuffles and grades exactly as the web dock and submits an ordinary `answer` input. Uploads land in `LH_UPLOADS_DIR` and travel as server paths. The wire contract and its fixtures are [`contracts/native.ts`](../src/core/contracts/native.ts) and `tests/fixtures/native/`.
+
 ### File access and external services
 
 Read-only file tools default to the server user's home, not a selected project or app data root. Walk exclusions reduce noise; they are not access authority. Session attachments carry local paths rather than uploads.

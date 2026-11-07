@@ -6,6 +6,7 @@
 - [Keyboard shortcuts](keyboard.md) — defaults, rebinding, and navigation.
 - [Claude Code](claude-code.md) — use an installed CLI and troubleshoot its connection.
 - [Custom and local models](custom-providers.md) — configure an OpenAI-compatible endpoint.
+- [Cloud server](cloud-server.md) — run a single-user server in Docker for the iOS app and remote browsers.
 - [Context, caching, and costs](compaction-accounting.md) — understand the session meters and advanced cache preferences.
 - [Learning-data skill](../skills/learnharness/SKILL.md) — a read-only guide and standalone readers for local learning records.
 
