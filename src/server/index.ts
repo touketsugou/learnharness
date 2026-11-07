@@ -55,3 +55,6 @@ export { claudeCodeInstallationResponse } from "./claude-code.ts";
 // No import side effects; the boot sync lives in stores.ts.
 export * from "./custom-provider.ts";
 export { customProviderGet, customProviderMutation } from "./custom-provider-http.ts";
+// Cloud mode (iOS client, 2026-11-07): token access gate + browser sign-in.
+export { cloudMode } from "./remote-access.ts";
+export { loginPageResponse, loginSubmitResponse, logoutResponse } from "./remote-login.ts";
