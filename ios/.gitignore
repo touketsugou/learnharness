@@ -1,0 +1,11 @@
+# Your signing team and bundle id (copy Config/Local.example.xcconfig).
+Config/Local.xcconfig
+# Vendored from node_modules by scripts/vendor-web.sh.
+LHKit/Sources/LHRender/Resources/web/mermaid.min.js
+# Build products and per-user Xcode state.
+.build/
+LHKit/.swiftpm/
+DerivedData/
+build/
+xcuserdata/
+*.xcuserstate

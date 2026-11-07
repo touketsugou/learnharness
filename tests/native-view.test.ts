@@ -218,6 +218,26 @@ describe("native stream", () => {
 		assert.deepEqual(revisions, [...revisions].sort((a, b) => a - b), "revisions are monotonic");
 	});
 
+	it("normalizes math for display without touching the record or option values", () => {
+		const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+		const quiz = { ...QUIZ_INPUT, question: "Which is \\(\\pi r^2\\)?", options: [{ label: "Area \\(\\pi r^2\\)", value: "area" }, { label: "Perimeter", value: "perimeter" }], correctAnswer: "area" };
+		const record = {
+			id: "c_math", title: "t", createdAt: "x", updatedAt: "x",
+			messages: [
+				{ id: "u1", role: "user", content: "hi", timestamp: 0 },
+				{ id: "a1", role: "assistant", content: [{ type: "text", text: "The area is \\(\\pi r^2\\)." }, { type: "toolCall", id: "q1", name: "quiz", arguments: quiz }], stopReason: "toolUse", api: "x", provider: "x", model: "x", usage, timestamp: 0 },
+			],
+		};
+		const before = JSON.stringify(record);
+		const view = buildNativeView(record as never);
+		assert.equal(JSON.stringify(record), before, "the record is never rewritten");
+		const text = view.messages[1]!.parts.find((p) => p.type === "text")!.text!;
+		assert(text.includes("$$\\pi r^2$$"), text);
+		const dock = view.dock as NativeQuestionDock;
+		assert(dock.question.includes("$$\\pi r^2$$"), dock.question);
+		assert(dock.options.some((o) => o.label.includes("$$\\pi r^2$$") && o.value === "area"));
+	});
+
 	it("patches only changed messages and skips no-op frames", () => {
 		const differ = new NativeFrameDiffer();
 		const base = buildNativeView({ id: "c", title: "t", createdAt: "x", updatedAt: "x", messages: [

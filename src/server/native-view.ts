@@ -36,10 +36,12 @@ import {
 	projectView,
 	questionDataFromCall,
 	questionNeedsReveal,
+	repairMathForDisplay,
 	streamingToolActivity,
 	subscribe as subscribeServerEvents,
 	toClientQuestion,
 	toolQuestionKind,
+	transformMathDelimiters,
 	type LhMessage,
 	type LhViewMessage,
 	type LhViewPart,
@@ -125,9 +127,63 @@ function redactPart(part: LhViewPart): LhViewPart {
 	return part;
 }
 
+// ─── display text (owner 2026-11-07) ────────────────────────────────────────
+// The web normalizes math at render time: prose through
+// transformMathDelimiters (legacy \(...\) / \[...\] → dollar math),
+// tool-authored content additionally through repairMathForDisplay (the
+// display-only recovery of JSON-swallowed backslashes). The native view
+// applies the same functions to the same fields, so Swift renders only
+// standard $...$ / $$...$$. The record itself is never rewritten.
+
+const displayProse = (text: string): string => transformMathDelimiters(text);
+const displayTool = (text: string): string => transformMathDelimiters(repairMathForDisplay(text));
+
+type Fields = Record<string, unknown>;
+
+function mapStrings(value: unknown, keys: readonly string[], fn: (text: string) => string): unknown {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+	const source = value as Fields;
+	let copy: Fields | undefined;
+	for (const key of keys) {
+		if (typeof source[key] !== "string") continue;
+		copy ??= { ...source };
+		copy[key] = fn(source[key] as string);
+	}
+	return copy ?? value;
+}
+
+function mapOptions(value: unknown, fn: (text: string) => string): unknown {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+	const options = (value as Fields).options;
+	if (!Array.isArray(options)) return value; // string-encoded options stay raw (parsed by the reader)
+	return { ...(value as Fields), options: options.map((o) => mapStrings(o, ["label", "description"], fn)) };
+}
+
+function displayPart(part: LhViewPart): LhViewPart {
+	if ((part.type === "text" || part.type === "reasoning") && typeof part.text === "string") {
+		return { ...part, text: displayProse(part.text) };
+	}
+	if (!part.type.startsWith("tool-")) return part;
+	const tool = part.type.slice("tool-".length);
+	if ((QUESTION_TOOLS as readonly string[]).includes(tool)) {
+		return {
+			...part,
+			input: mapOptions(mapStrings(part.input, ["question", "details"], displayTool), displayTool),
+			output: mapOptions(mapStrings(part.output, ["questionText", "explanation", "committed"], displayTool), displayTool),
+		};
+	}
+	if (tool === "problem") return { ...part, input: mapStrings(part.input, ["statement"], displayTool) };
+	if (tool === "conclude") {
+		const next: LhViewPart = { ...part, input: mapStrings(part.input, ["verdict", "solutionReveal"], displayTool) };
+		if (typeof part.reveal === "string") next.reveal = displayTool(part.reveal);
+		return next;
+	}
+	return part;
+}
+
 function nativeMessages(view: readonly LhViewMessage[]): NativeViewMessage[] {
 	return view.map((m) => {
-		const message: NativeViewMessage = { id: m.id, role: m.role, parts: m.parts.map(redactPart) };
+		const message: NativeViewMessage = { id: m.id, role: m.role, parts: m.parts.map((part) => displayPart(redactPart(part))) };
 		if (m.metadata !== undefined) message.metadata = m.metadata;
 		return message;
 	});
@@ -158,10 +214,14 @@ function dockOf(
 				tool: pending.tool,
 				kind: client.kind,
 				...(data.questionType ? { questionType: data.questionType } : {}),
-				question: client.question,
-				...(client.context !== undefined ? { context: client.context } : {}),
+				question: displayTool(client.question),
+				...(client.context !== undefined ? { context: displayTool(client.context) } : {}),
 				mode: client.mode,
-				options: client.options,
+				options: client.options.map((o) => ({
+					...o,
+					label: displayTool(o.label),
+					...(o.description !== undefined ? { description: displayTool(o.description) } : {}),
+				})),
 				needsReveal: questionNeedsReveal(pending.tool, pending.input, phaseAt3(view)),
 				confidenceStops: [...CONFIDENCE_STOPS],
 				defaultConfidenceIndex: DEFAULT_CONFIDENCE_INDEX,
@@ -176,7 +236,7 @@ function dockOf(
 		return {
 			type: "problem",
 			toolCallId: problem.toolCallId,
-			...(typeof input.statement === "string" ? { statement: input.statement } : {}),
+			...(typeof input.statement === "string" ? { statement: displayTool(input.statement) } : {}),
 			...(typeof input.mode === "string" ? { mode: input.mode } : {}),
 		};
 	}
