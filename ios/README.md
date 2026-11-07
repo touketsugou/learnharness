@@ -76,6 +76,7 @@ The app asks once for the **microphone** and **speech recognition** when you fir
 | `LHKit/` | Local Swift package: `LHAPI` (HTTP, SSE, contract models, settings, graph geometry), `LHCache` (offline copies), `LHRender` (Markdown, LaTeX, web cards) |
 | `Config/` | `Base.xcconfig`, `Local.example.xcconfig`, and the Debug-only ATS exception |
 | `scripts/vendor-web.sh` | Copies `mermaid.min.js` from `node_modules` into `LHRender` |
+| `../build/icon.icon` | The app icon: the desktop app's Icon Composer document, referenced rather than copied, so a design change updates both apps |
 
 ## Tests
 
