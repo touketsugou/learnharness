@@ -9,12 +9,21 @@ struct GraphScreen: View {
 	@State private var model: GraphModel?
 
 	var body: some View {
-		NavigationStack {
-			if let model {
-				GraphContent(model: model)
+		Group {
+			if let model, !model.rendering {
+				ChainsHome(model: model)
 			} else {
-				ProgressView()
+				NavigationStack {
+					if let model {
+						GraphContent(model: model)
+					} else {
+						ProgressView()
+					}
+				}
 			}
+		}
+		.onChange(of: app.settingsRecord) {
+			if let record = app.settingsRecord { model?.applySettings(record) }
 		}
 		.task {
 			guard model == nil, let client = app.client, let store = app.store else { return }
@@ -54,13 +63,15 @@ private struct GraphContent: View {
 				} description: {
 					Text("Start a session to begin learning.\nAttach your material with the paperclip.")
 				} actions: {
-					importMenu.buttonStyle(.bordered)
+					NotesImportMenu(model: model, pickFiles: $pickFiles, pickFolder: $pickFolder).buttonStyle(.bordered)
 				}
 			} else if let error = model.error {
 				ContentUnavailableView("Couldn’t load the graph", systemImage: "exclamationmark.triangle", description: Text(error))
 			}
 		}
-		.overlay(alignment: .top) { statusStack }
+		.overlay(alignment: .top) {
+			GraphStatusPills(model: model, noMatches: !query.trimmingCharacters(in: .whitespaces).isEmpty && scene?.nodes.isEmpty == true)
+		}
 		.navigationTitle("Graph")
 		.navigationBarTitleDisplayMode(.inline)
 		.searchable(text: $query, prompt: "Search nodes")
@@ -72,7 +83,7 @@ private struct GraphContent: View {
 			ToolbarItemGroup(placement: .topBarTrailing) {
 				Button { request.fit() } label: { Image(systemName: "arrow.up.left.and.down.right.magnifyingglass") }
 					.accessibilityLabel("Fit graph")
-				importMenu
+				NotesImportMenu(model: model, pickFiles: $pickFiles, pickFolder: $pickFolder)
 			}
 		}
 		.refreshable { await model.reload() }
@@ -103,16 +114,7 @@ private struct GraphContent: View {
 				request.focus(id)
 			}
 		}
-		.fileImporter(isPresented: $pickFiles, allowedContentTypes: NotesImportQueue.fileTypes, allowsMultipleSelection: true) { result in
-			if case .success(let urls) = result { model.imports.append(NotesSelection.files(urls)) }
-		}
-		.background {
-			// A second importer needs its own host view.
-			Color.clear.fileImporter(isPresented: $pickFolder, allowedContentTypes: [.folder]) { result in
-				if case .success(let url) = result { model.imports.append(NotesSelection.folder(url)) }
-			}
-		}
-		.onChange(of: model.imports.completed) { Task { await model.reloadGraph() } }
+		.notesImporters(model: model, pickFiles: $pickFiles, pickFolder: $pickFolder)
 	}
 
 	private func rebuild() {
@@ -121,7 +123,47 @@ private struct GraphContent: View {
 		if let selected, !(scene?.nodes.contains { $0.id == selected } ?? false) { self.selected = nil }
 	}
 
-	private var importMenu: some View {
+
+}
+
+/// The Graph tab with rendering switched off: the chains & sources view
+/// is the home, with import, status and node details.
+private struct ChainsHome: View {
+	let model: GraphModel
+	@Environment(AppModel.self) private var app
+	@State private var selected: String?
+	@State private var pickFiles = false
+	@State private var pickFolder = false
+
+	var body: some View {
+		SourcesView(model: model, home: SourcesView.Home(
+			actions: AnyView(NotesImportMenu(model: model, pickFiles: $pickFiles, pickFolder: $pickFolder)),
+			status: AnyView(GraphStatusPills(model: model, noMatches: false))
+		)) { id in selected = id }
+		.sheet(isPresented: Binding(get: { selected != nil }, set: { if !$0 { selected = nil } })) {
+			if let id = selected, let snapshot = model.snapshot, let node = snapshot.propositions.first(where: { $0.id == id }) {
+				NodeDetailSheet(node: node, snapshot: snapshot, model: model,
+					onSelectNode: { other in selected = other },
+					onOpenSession: { chatId, messageId in
+						selected = nil
+						app.openSession(chatId, messageId: messageId)
+					},
+					onDeleted: { selected = nil })
+				.id(node.id)
+				.presentationDetents([.medium, .large])
+			}
+		}
+		.notesImporters(model: model, pickFiles: $pickFiles, pickFolder: $pickFolder)
+	}
+}
+
+/// "Extract files…": notes import from Files (files or a folder).
+private struct NotesImportMenu: View {
+	let model: GraphModel
+	@Binding var pickFiles: Bool
+	@Binding var pickFolder: Bool
+
+	var body: some View {
 		Menu {
 			Section("For lessons, attach material to a session instead.") {
 				Button("Files", systemImage: "doc") { pickFiles = true }
@@ -132,9 +174,30 @@ private struct GraphContent: View {
 		}
 		.disabled(model.offline)
 	}
+}
 
-	/// Offline note, running extractions, import progress and results, no-match note.
-	@ViewBuilder private var statusStack: some View {
+extension View {
+	/// The file and folder pickers behind NotesImportMenu.
+	fileprivate func notesImporters(model: GraphModel, pickFiles: Binding<Bool>, pickFolder: Binding<Bool>) -> some View {
+		fileImporter(isPresented: pickFiles, allowedContentTypes: NotesImportQueue.fileTypes, allowsMultipleSelection: true) { result in
+			if case .success(let urls) = result { model.imports.append(NotesSelection.files(urls)) }
+		}
+		.background {
+			// A second importer needs its own host view.
+			Color.clear.fileImporter(isPresented: pickFolder, allowedContentTypes: [.folder]) { result in
+				if case .success(let url) = result { model.imports.append(NotesSelection.folder(url)) }
+			}
+		}
+		.onChange(of: model.imports.completed) { Task { await model.reloadGraph() } }
+	}
+}
+
+/// Offline note, running extractions, import progress and results, no-match note.
+private struct GraphStatusPills: View {
+	let model: GraphModel
+	let noMatches: Bool
+
+	var body: some View {
 		VStack(spacing: 6) {
 			if model.offline {
 				StatusPill(text: "Offline — read-only copy", systemImage: "wifi.slash")
@@ -152,7 +215,7 @@ private struct GraphContent: View {
 			if !model.imports.messages.isEmpty {
 				ImportMessages(queue: model.imports)
 			}
-			if !query.trimmingCharacters(in: .whitespaces).isEmpty, let scene, scene.nodes.isEmpty {
+			if noMatches {
 				StatusPill(text: "No matching nodes.", systemImage: "magnifyingglass")
 			}
 		}

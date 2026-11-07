@@ -17,6 +17,9 @@ struct GraphCanvasView: View {
 
 	@Environment(\.colorScheme) private var colorScheme
 	@State private var size: CGSize = .zero
+	/// The last automatic fit: while the camera still equals it, a resize
+	/// refits (the first layout can report an intermediate size).
+	@State private var autoFit: GraphGeometry.Camera?
 	@State private var lastTranslation: CGSize = .zero
 	@State private var lastMagnification: CGFloat = 1
 	/// A pinch is in progress: the one-finger drag must not pan meanwhile.
@@ -41,9 +44,15 @@ struct GraphCanvasView: View {
 		.contentShape(Rectangle())
 		.gesture(pan.simultaneously(with: zoom))
 		.gesture(doubleTap.exclusively(before: tap))
-		.onGeometryChange(for: CGSize.self, of: \.size) { newSize in
-			size = newSize
-			if camera == nil { fit(scene.allBox) }
+		.background {
+			// Read the size on appear too: a canvas present in its first
+			// layout (rebuilt with the graph already loaded) gets no change
+			// callback, and without a size the camera never fits.
+			GeometryReader { proxy in
+				Color.clear
+					.onAppear { resized(proxy.size) }
+					.onChange(of: proxy.size) { _, newSize in resized(newSize) }
+			}
 		}
 		.onChange(of: request) { _, request in
 			switch request.target {
@@ -52,8 +61,13 @@ struct GraphCanvasView: View {
 			case .none: break
 			}
 		}
-		.onChange(of: scene.allBox) { if camera == nil { fit(scene.allBox) } }
+		.onChange(of: scene.allBox) { if camera == nil { fit(scene.allBox, automatic: true) } }
 		.accessibilityLabel("Knowledge graph")
+	}
+
+	private func resized(_ newSize: CGSize) {
+		size = newSize
+		if camera == nil || camera == autoFit { fit(scene.allBox, automatic: true) }
 	}
 
 	/// The label gate's 1× reference: the zoom that fits the whole graph.
@@ -62,13 +76,14 @@ struct GraphCanvasView: View {
 		return GraphGeometry.fit(box, width: size.width, height: size.height).k
 	}
 
-	private func fit(_ box: GraphGeometry.Box?) {
+	private func fit(_ box: GraphGeometry.Box?, automatic: Bool = false) {
 		guard let box, size.width > 10, size.height > 10 else { return }
 		var target = GraphGeometry.fit(box, width: size.width, height: size.height)
 		target.k = min(target.k, fitK * 8)
 		let center = Point(x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2)
 		target.x = size.width / 2 - center.x * target.k
 		target.y = size.height / 2 - center.y * target.k
+		autoFit = automatic ? target : nil
 		withAnimation(.easeOut(duration: 0.25)) { camera = target }
 	}
 

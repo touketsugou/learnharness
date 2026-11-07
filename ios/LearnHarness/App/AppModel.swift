@@ -16,6 +16,9 @@ final class AppModel {
 	var tab: AppTab = .sessions
 	/// A session to open (from the graph), consumed by the session list.
 	var sessionRequest: String?
+	/// The settings record the Settings tab last read or wrote; other
+	/// screens follow it (the Graph tab's rendering switch).
+	var settingsRecord: SettingsRecord?
 	/// The native message to scroll to when that session opens.
 	private var messageFocus: [String: String] = [:]
 	let events = EventHub()
@@ -58,6 +61,8 @@ final class AppModel {
 		connection = nil
 		client = nil
 		store = nil
+		settingsRecord = nil
+		tab = .sessions
 	}
 
 	var serverAddress: String? { defaults.string(forKey: Self.serverURLKey) }
@@ -99,4 +104,5 @@ enum ConnectionError: LocalizedError {
 enum AppTab: Hashable {
 	case sessions
 	case graph
+	case settings
 }
