@@ -11,6 +11,9 @@ final class AppModel {
 	private(set) var client: APIClient?
 	private(set) var store: OfflineStore?
 	let events = EventHub()
+	/// The first message of a just-created session, sent once it opens
+	/// (the web's stashed opening prompt).
+	private var openingPrompts: [String: String] = [:]
 
 	private let tokens: TokenStore
 	private let defaults: UserDefaults
@@ -48,6 +51,9 @@ final class AppModel {
 	}
 
 	var serverAddress: String? { defaults.string(forKey: Self.serverURLKey) }
+
+	func stashOpening(_ text: String, for chatId: String) { openingPrompts[chatId] = text }
+	func takeOpening(for chatId: String) -> String? { openingPrompts.removeValue(forKey: chatId) }
 
 	private func activate(_ connection: ServerConnection) {
 		self.connection = connection

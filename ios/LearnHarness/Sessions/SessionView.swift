@@ -22,6 +22,7 @@ struct SessionView: View {
 			let session = SessionModel(chatId: chatId, client: client, store: store, events: app.events)
 			model = session
 			session.start()
+			if let opening = app.takeOpening(for: chatId) { await session.sendText(opening) }
 		}
 		.onDisappear { model?.stop() }
 	}
@@ -47,6 +48,7 @@ private struct SessionContent: View {
 		.navigationBarTitleDisplayMode(.inline)
 		.toolbar {
 			ToolbarItemGroup(placement: .topBarTrailing) {
+				ModelMenu(model: model)
 				if model.state?.plan != nil {
 					Button { showPlan = true } label: { Image(systemName: "map") }
 						.accessibilityLabel("Plan")
