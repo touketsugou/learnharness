@@ -28,7 +28,7 @@
  * turn rides one composition.
  */
 
-import type { QuestionAnswerData } from "./question-core.ts";
+import { buildAnswer, questionDataFromCall, type AnswerRequest, type QuestionAnswerData } from "./question-core.ts";
 import type { LhMessage } from "./native-messages.ts";
 import {
 	activeProblemOf,
@@ -337,6 +337,77 @@ function failedTail(messages: readonly LhMessage[]): { ids: Set<string>; before:
 function dismissalConclusion(record: { messages: LhMessage[] }): LhMessage[] {
 	const problemCallId = pendingProblemDismissalOf(record.messages);
 	return problemCallId ? concludedByDismissalPair(problemCallId) : [];
+}
+
+// ─── native-client answers (iOS client, owner 2026-11-07) ──────────────────
+// The native client submits the learner's RAW selection (AnswerRequest); the
+// server shuffles, grades and snapshots exactly as the web dock does, then
+// the result rides the ordinary `answer` input — one answer path.
+
+/** Parse and validate a raw AnswerRequest off a request body. */
+export function parseAnswerRequest(raw: unknown): AnswerRequest {
+	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new ChatInputError("request must be an object");
+	const r = raw as Record<string, unknown>;
+	const out: AnswerRequest = {};
+	if (r.dontKnow !== undefined) {
+		if (typeof r.dontKnow !== "boolean") throw new ChatInputError("request.dontKnow must be a boolean");
+		out.dontKnow = r.dontKnow;
+	}
+	if (r.values !== undefined) {
+		if (!Array.isArray(r.values) || r.values.some((v) => typeof v !== "string")) throw new ChatInputError("request.values must be an array of option values");
+		out.values = r.values as string[];
+	}
+	for (const key of ["other", "text", "thinking", "readingThinking"] as const) {
+		if (r[key] === undefined) continue;
+		if (typeof r[key] !== "string") throw new ChatInputError(`request.${key} must be a string`);
+		out[key] = r[key] as string;
+	}
+	if (r.confidence !== undefined) {
+		if (typeof r.confidence !== "number" || !Number.isFinite(r.confidence)) throw new ChatInputError("request.confidence must be a number");
+		out.confidence = r.confidence;
+	}
+	return out;
+}
+
+/** Grade a native answer against the record's dangling question call and
+ *  return the ordinary `answer` input. Mirrors the web dock's submit rules:
+ *  text mode needs text; select modes need a pick, "Other" text, or
+ *  "I don't know"; quiz picks carry the stated confidence. */
+export function answerInputFromRequest(
+	messages: readonly LhMessage[],
+	toolCallId: string,
+	request: AnswerRequest,
+): Extract<ChatInput, { type: "answer" }> {
+	const pending = danglingQuestionOf(messages);
+	if (!pending || pending.toolCallId !== toolCallId) {
+		throw new ChatInputError("answer input targets no pending question call");
+	}
+	const kind = toolQuestionKind(pending.tool);
+	const qd = questionDataFromCall(kind, toolCallId, pending.input as Parameters<typeof questionDataFromCall>[2]);
+	const known = new Set(qd.options.map((o) => o.value));
+	const values = request.values ?? [];
+	if (values.some((v) => !known.has(v))) throw new ChatInputError("answer selects an unknown option");
+	if (qd.mode === "single-select" && values.length > 1) throw new ChatInputError("a single-select answer selects one option");
+	const dontKnow = request.dontKnow === true;
+	const other = request.other?.trim() ? request.other : undefined;
+	if (qd.mode === "text") {
+		if (!request.text?.trim()) throw new ChatInputError("a text answer requires text");
+	} else if (!dontKnow && !other && values.length === 0) {
+		throw new ChatInputError("a select answer requires an option, Other text, or I don't know");
+	}
+	if (kind === "quiz" && !dontKnow && request.confidence === undefined) {
+		throw new ChatInputError("a quiz answer requires confidence");
+	}
+	const normalized: AnswerRequest = {
+		dontKnow,
+		values,
+		other,
+		text: qd.mode === "text" ? request.text : undefined,
+		thinking: qd.mode !== "text" ? request.thinking?.trim() || undefined : undefined,
+		readingThinking: request.readingThinking,
+		confidence: kind === "quiz" ? request.confidence : undefined,
+	};
+	return { type: "answer", toolCallId, answer: buildAnswer(qd, normalized, pending.tool) };
 }
 
 /** Is this tool name a question tool (dock-owned, answer-gated)? */

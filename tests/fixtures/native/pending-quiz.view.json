@@ -1,0 +1,113 @@
+{
+	"version": 1,
+	"chatId": "chat_native_fixture",
+	"title": "Fixture: solar system",
+	"kind": "teach",
+	"createdAt": "2026-11-07T00:00:00.000Z",
+	"updatedAt": "2026-11-07T00:00:00.000Z",
+	"revision": 0,
+	"status": "idle",
+	"phase": "probe",
+	"activity": null,
+	"dock": {
+		"type": "question",
+		"toolCallId": "call-1",
+		"key": "call-1",
+		"tool": "quiz",
+		"kind": "quiz",
+		"questionType": "check",
+		"question": "Which planet is closest to the sun?",
+		"mode": "single-select",
+		"options": [
+			{
+				"label": "Mars",
+				"value": "Mars"
+			},
+			{
+				"label": "Venus",
+				"value": "Venus"
+			},
+			{
+				"label": "Mercury",
+				"value": "Mercury"
+			}
+		],
+		"needsReveal": false,
+		"confidenceStops": [
+			0,
+			30,
+			50,
+			70,
+			90,
+			100
+		],
+		"defaultConfidenceIndex": 2
+	},
+	"malformedQuestions": [],
+	"plan": null,
+	"needsContinuation": false,
+	"failure": null,
+	"usage": {
+		"contextTokens": null,
+		"cost": 0,
+		"unpriced": 0
+	},
+	"settings": null,
+	"coverage": null,
+	"messages": [
+		{
+			"id": "msg_user_1",
+			"role": "user",
+			"parts": [
+				{
+					"type": "text",
+					"text": "teach me the solar system",
+					"state": "done"
+				}
+			]
+		},
+		{
+			"id": "msg_asst_1",
+			"role": "assistant",
+			"parts": [
+				{
+					"type": "step-start"
+				},
+				{
+					"type": "reasoning",
+					"id": "msg_asst_1-r0",
+					"text": "Probe first.",
+					"state": "done"
+				},
+				{
+					"type": "text",
+					"id": "msg_asst_1-t0",
+					"text": "Let's check one thing.",
+					"state": "done"
+				},
+				{
+					"type": "tool-quiz",
+					"toolCallId": "call-1",
+					"input": {
+						"question": "Which planet is closest to the sun?",
+						"options": [
+							{
+								"label": "Venus"
+							},
+							{
+								"label": "Mercury"
+							},
+							{
+								"label": "Mars"
+							}
+						],
+						"type": "check"
+					},
+					"state": "input-available",
+					"sourceMessageId": "msg_asst_1",
+					"sourceContentIndex": 2
+				}
+			]
+		}
+	]
+}

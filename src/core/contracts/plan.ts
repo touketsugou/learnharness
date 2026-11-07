@@ -62,7 +62,7 @@ export type PlanNodeStatus = "current" | "visited" | "upcoming";
 /** Minimal structural message slice — anything with typed parts (mirrors
  * phases.ts: pure, no runtime deps, safe on server, client, and in tests). */
 interface PartsCarrier {
-	parts: Array<{ type: string; state?: string; input?: unknown; output?: unknown }>;
+	parts: ReadonlyArray<{ type: string; state?: string; input?: unknown; output?: unknown }>;
 }
 
 export interface DerivedPlanStatuses {
@@ -77,6 +77,22 @@ export function derivedNodeStatus(statuses: DerivedPlanStatuses, nodeId: string)
 	if (statuses.current === nodeId) return "current";
 	if (statuses.visited.has(nodeId)) return "visited";
 	return "upcoming";
+}
+
+/** The latest plan tree in a projected transcript: the newest successful
+ *  plan tool output. Shared by the web plan popup and the native view. */
+export function latestPlanTree(messages: readonly PartsCarrier[]): PlanTree | null {
+	for (let m = messages.length - 1; m >= 0; m--) {
+		const parts = messages[m]?.parts;
+		if (!parts) continue;
+		for (let p = parts.length - 1; p >= 0; p--) {
+			const part = parts[p]!;
+			if (!part.type.startsWith("tool-plan_") || part.state !== "output-available") continue;
+			const output = part.output as { tree?: PlanTree } | undefined;
+			if (output?.tree && Array.isArray(output.tree.nodes)) return output.tree;
+		}
+	}
+	return null;
 }
 
 export function derivePlanStatuses(tree: PlanTree, messages: readonly PartsCarrier[]): DerivedPlanStatuses {

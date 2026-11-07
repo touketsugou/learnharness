@@ -14,7 +14,7 @@ import { layout as dagreLayout } from "dagre-d3-es/src/dagre/index.js";
 import { curveBasis, line } from "d3-shape";
 import { fitGraphView, fitZoomFor, zoomedGraphView, type Viewport } from "@/components/pan-zoom";
 import type { PlanBlockData, PlanNodeStatus, PlanTree } from "@/src/core";
-import { derivedNodeStatus, derivePlanStatuses } from "@/src/core";
+import { derivedNodeStatus, derivePlanStatuses, latestPlanTree } from "@/src/core";
 import { Hint } from "@/components/ui/hint";
 
 /**
@@ -714,17 +714,7 @@ export interface PopupMessage {
 
 /** The latest plan tree in the transcript (latest tool-plan_ output). */
 export function latestTree(messages: readonly PopupMessage[]): PlanTree | null {
-	for (let m = messages.length - 1; m >= 0; m--) {
-		const parts = messages[m]?.parts;
-		if (!parts) continue;
-		for (let p = parts.length - 1; p >= 0; p--) {
-			const part = parts[p]!;
-			if (!part.type.startsWith("tool-plan_") || part.state !== "output-available") continue;
-			const output = part.output as { tree?: PlanTree } | undefined;
-			if (output?.tree && Array.isArray(output.tree.nodes)) return output.tree;
-		}
-	}
-	return null;
+	return latestPlanTree(messages);
 }
 
 /** The popup shows the glow, so its frame pads by the glow's reach —

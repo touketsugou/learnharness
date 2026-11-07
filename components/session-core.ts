@@ -13,9 +13,11 @@
  * ready | submitted | streaming | error.
  */
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import {
+	applyLiveEvent,
+	emptyLiveTurnBuffer,
+	liveEventActed,
 	needsContinuation,
 	pendingQuestionOf,
 	failedResponseAtEnd,
@@ -239,16 +241,23 @@ export class SessionModel {
 	// optimistic appends and the streaming turn's messages). The tail dies
 	// at every full sync; the write-ahead absorbs the optimistic entries.
 	private base: LhMessage[];
-	private tail: LhMessage[] = [];
+	/** The live tail + execution layer, merged by the shared reducer
+	 *  (core/live-turn.ts — the server-side native view uses the same). */
+	private live = emptyLiveTurnBuffer();
+	private get tail(): LhMessage[] { return this.live.tail; }
+	private set tail(value: LhMessage[]) { this.live.tail = value; }
+	// The live turn's execution layer (view model mid-turn states):
+	private get executions(): Map<string, LiveExecution> { return this.live.executions; }
+	private set executions(value: Map<string, LiveExecution>) { this.live.executions = value; }
+	private get streamingIds(): Set<string> { return this.live.streamingIds; }
+	private set streamingIds(value: Set<string>) { this.live.streamingIds = value; }
+	/** The in-flight assistant message's client id (see applyWireEvent). */
+	private get streamingMessageId(): string | null { return this.live.streamingMessageId; }
+	private set streamingMessageId(value: string | null) { this.live.streamingMessageId = value; }
 	private questionDrafts = new Map<string, QuestionDraft>();
 	/** Only learner answers submitted through send(), never silent dismissals. */
 	private unconfirmedAnswers = new Map<string, string>();
-	// The live turn's execution layer (view model mid-turn states):
-	private executions = new Map<string, LiveExecution>();
-	private streamingIds = new Set<string>();
 	private incompleteUsageIds = new Set<string>();
-	/** The in-flight assistant message's client id (see applyWireEvent). */
-	private streamingMessageId: string | null = null;
 	private statusValue: SessionStatus = "ready";
 	/** Request/loop failures are transient; provider failures derive from messages. */
 	private errorValue: { message: string } | null = null;
@@ -370,119 +379,43 @@ export class SessionModel {
 	 * provider-connect gap (owner, optimistic round 3, 2026-10-02).
 	 */
 	applyWireEvent(event: Record<string, unknown>): boolean {
-		if (event.type === "error") {
-			// Loop-level failure (agent.continue threw outside the stream) —
-			// raw text (owner ruling, Wave D): the banner shows exactly this.
-			this.setError(String(event.errorText ?? "An error occurred."));
-			return false;
-		}
-		const agent = event as unknown as AgentEvent;
-		switch (agent.type) {
-			case "agent_start":
+		const result = applyLiveEvent(this.live, event, {
+			// Adoption/refetch may already carry a durable marker before its
+			// start/end is replayed; the record owns that identity.
+			inRecord: (id) => this.base.some((m) => m.id === id),
+			mintId: localId,
+		});
+		switch (result.kind) {
+			case "loop-error":
+				// Loop-level failure (agent.continue threw outside the stream) —
+				// raw text (owner ruling, Wave D): the banner shows exactly this.
+				this.setError(result.errorText);
+				return false;
+			case "agent-start":
 				// Positive evidence of a new/replayed server-owned turn. Any
 				// later failure in that replay blocks continuation again.
 				this.automaticContinuationBlocked = false;
 				if (this.errorValue !== null) this.setError(null);
 				return false;
-			case "message_start":
-			case "message_update":
-			case "message_end": {
-				const message = agent.message as LhMessage & {
-					role?: string;
-					id?: string;
-				};
-				if ((message as { role?: string }).role !== "assistant") {
-					// Wave C: markers injected mid-run (pi's follow-up delivery)
-					// arrive as custom-role message_start/message_end events -
-					// UPSERT by id (markers always carry steer_<id> ids; id-less
-					// non-assistant events never occur - injected messages emit
-					// start+end only, no streaming partials). Without this the
-					// live stream dropped the marker until the settle sync.
-					const mid = message.id;
-					if (mid === undefined) return false;
-					// Adoption/refetch may already carry this durable message before
-					// its start/end is replayed. The record owns that identity;
-					// adding it to the tail would duplicate it until the next sync.
-					if (this.base.some((m) => m.id === mid)) return false;
-					this.mutate(() => {
-						const idx = this.tail.findIndex((m) => m.id === mid);
-						this.tail =
-							idx === -1 ? [...this.tail, message as LhMessage] : this.tail.with(idx, message as LhMessage);
-					});
-					return true;
-				}
-				// pi streams AssistantMessages with NO id — the id exists only
-				// once the server's persistTurn stamps the record (the live
-				// streaming bug, 2026-09-26: minting a fresh id per event made
-				// every message_update APPEND a full copy — a divider + thinking
-				// block per chunk, cleaned up only by the settle sync). The
-				// in-flight message is tracked by SLOT instead: message_start
-				// mints and remembers the id; updates and the end REPLACE that
-				// same tail entry. Exactly one assistant message streams at a
-				// time (pi's strict start → updates → end ordering per step; the
-				// reattach replay replays the same sequence), so the slot is
-				// unambiguous. An explicit message.id (if one ever appears on
-				// the wire) still wins.
-				const id = message.id ?? this.streamingMessageId ?? localId();
-				const withId = { ...message, id } as LhMessage;
-				if (agent.type === "message_end") {
-					this.incompleteUsageIds.delete(id);
+			case "ignored":
+				return false;
+			case "assistant":
+				if (result.phase === "message_end") {
+					this.incompleteUsageIds.delete(result.id);
+					const message = result.message as LhMessage & { stopReason?: string };
 					if (message.role === "assistant" && message.stopReason === "error") {
-						this.liveFailureId = id;
+						this.liveFailureId = result.id;
 						// A newer provider failure replaces an earlier connection/loop
 						// error, just as the live message_end did before restoration.
 						this.errorValue = null;
 					}
-				} else this.incompleteUsageIds.add(id);
-				if (agent.type === "message_start") {
-					this.streamingMessageId = id;
-					this.streamingIds.add(id);
-					this.mutate(() => {
-						this.tail = [...this.tail, withId];
-					});
-				} else {
-					this.mutate(() => {
-						const idx = this.tail.findIndex((m) => m.id === id);
-						this.tail = idx === -1 ? [...this.tail, withId] : this.tail.with(idx, withId);
-					});
-				}
-				if (agent.type === "message_end") {
-					this.streamingMessageId = null; // slot done — next start mints fresh
-				}
-				return true; // a message event is view work, even empty content
-			}
-			case "tool_execution_end": {
-				// The execution layer: clean question placeholders are IGNORED
-				// downstream (view.ts fork 2); errors keep their validation text.
-				const result = agent.result as
-					| { content?: Array<{ type?: string; text?: string }>; details?: unknown }
-					| null;
-				const text = result?.content?.find((c) => c.type === "text")?.text ?? "The tool call failed.";
-				this.mutate(() => {
-					this.executions = new Map(this.executions).set(agent.toolCallId, {
-						isError: agent.isError,
-						output: result?.details,
-						errorText: text,
-					});
-				});
-				return true; // the execution layer updated the tool part's card
-			}
-			case "turn_end": {
-				// The results batch: append as native messages (client-stamped
-				// ids — the settle sync lands the server canon).
-				this.mutate(() => {
-					this.tail = [
-						...this.tail,
-						...(agent.toolResults as ToolResultMessage[]).map(
-							(r) => ({ ...r, id: localId() }) as unknown as LhMessage,
-						),
-					];
-				});
-				return true;
-			}
+				} else this.incompleteUsageIds.add(result.id);
+				break;
 			default:
-				return false; // agent_start/turn_start/tool_execution_start|update: no view work
+				break;
 		}
+		this.onChange?.();
+		return liveEventActed(result); // a message/execution/results event is view work
 	}
 
 	/** Consume one SSE body to its [DONE] terminal. The turn-settled

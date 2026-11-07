@@ -114,6 +114,11 @@ export interface PiTurnHandle {
 	 *  until the turn settles (ending [DONE]). Cancelling it detaches the
 	 *  view only — the turn runs on. */
 	subscribe(): ReadableStream<Uint8Array>;
+	/** The same attach-then-replay as subscribe(), as structured events for
+	 *  in-process views (the native client's server-side projection, iOS
+	 *  client 2026-11-07). Returns the detach function; detaching never
+	 *  touches the turn. */
+	attach(sub: PiTurnSubscriber): () => void;
 	/** The remote kill — the ONLY way a running turn dies early: sawAbort +
 	 *  agent.abort(); the loop's agent_end does the rest (the settle seam
 	 *  persists the partial transcript to every listener). */
@@ -343,6 +348,16 @@ export function runPiTurn(spec: PiTurnSpec): PiTurnHandle {
 				},
 			});
 			return stream;
+		},
+		attach(sub) {
+			// Synchronous attach + replay: no event can fall between them.
+			subscribers.add(sub);
+			for (const event of log) sub.push(event);
+			if (settled) {
+				subscribers.delete(sub);
+				sub.done();
+			}
+			return () => { subscribers.delete(sub); };
 		},
 		abort() {
 			if (settled) return;
