@@ -157,3 +157,16 @@ public enum FilePathQuoting {
 		return delimiter + padding + path + padding + delimiter
 	}
 }
+
+/// GET /api/chats/:id/images/:snapshotId (src/core/contracts/chat.ts ImageSnapshot).
+public struct ImageSnapshot: Sendable, Hashable, Codable {
+	/// image/png | image/jpeg.
+	public var mimeType: String
+	/// Base64 image bytes.
+	public var data: String
+	public var width: Int
+	public var height: Int
+
+	public var bytes: Data? { Data(base64Encoded: data) }
+	public var dataURI: String { "data:\(mimeType);base64,\(data)" }
+}

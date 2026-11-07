@@ -158,6 +158,12 @@ public struct QuizOption: Sendable, Hashable, Codable {
 	public var label: String
 	public var value: String
 	public var description: String?
+
+	public init(label: String, value: String, description: String? = nil) {
+		self.label = label
+		self.value = value
+		self.description = description
+	}
 }
 
 public struct NativeQuestionDock: Sendable, Hashable, Codable {

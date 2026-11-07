@@ -10,6 +10,7 @@ final class AppModel {
 	private(set) var connection: ServerConnection?
 	private(set) var client: APIClient?
 	private(set) var store: OfflineStore?
+	let events = EventHub()
 
 	private let tokens: TokenStore
 	private let defaults: UserDefaults
@@ -40,6 +41,7 @@ final class AppModel {
 		await store?.clearAll()
 		tokens.delete()
 		defaults.removeObject(forKey: Self.serverURLKey)
+		events.stop()
 		connection = nil
 		client = nil
 		store = nil
@@ -49,8 +51,10 @@ final class AppModel {
 
 	private func activate(_ connection: ServerConnection) {
 		self.connection = connection
-		client = APIClient(connection: connection)
+		let client = APIClient(connection: connection)
+		self.client = client
 		store = OfflineStore.forServer(connection.baseURL)
+		events.start(client: client)
 	}
 }
 
