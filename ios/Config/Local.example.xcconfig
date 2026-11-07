@@ -1,0 +1,5 @@
+// Copy to Local.xcconfig (git-ignored) and fill in your own values.
+// Team ID: Xcode → Settings → Accounts → your team, or developer.apple.com → Membership.
+LH_DEVELOPMENT_TEAM = ABCDE12345
+// Any reverse-DNS id you own; it must be unique to your Apple account.
+LH_BUNDLE_IDENTIFIER = com.yourname.learnharness

@@ -16,6 +16,12 @@
  * appear in this view (dock or transcript parts) until they are answered
  * or concluded.
  *
+ * Display text: math is normalized with the web's render-time functions
+ * (prose: transformMathDelimiters; tool content such as questions, options,
+ * explanations, problem statements and verdicts: repairMathForDisplay then
+ * transformMathDelimiters), so clients render only $...$ and $$...$$.
+ * Option `value`s are never rewritten — answers submit them verbatim.
+ *
  * Fixtures for the Swift decoder: tests/fixtures/native/*.json
  * (scripts/export-native-fixtures.ts).
  */
