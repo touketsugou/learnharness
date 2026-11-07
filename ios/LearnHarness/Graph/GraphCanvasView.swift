@@ -36,9 +36,13 @@ struct GraphCanvasView: View {
 	private func nodeRadius(_ k: Double) -> Double { max(settings.nodeSize * k, Self.minNodeRadius) }
 
 	var body: some View {
-		Canvas { context, _ in
-			guard let camera else { return }
-			draw(&context, camera: camera)
+		Canvas { context, canvasSize in
+			// Until the person moves the view, fit to the size being drawn:
+			// geometry callbacks can arrive late or with a transient size,
+			// and a stale fit would draw the graph off screen (or not at all).
+			let automatic = camera == nil || camera == autoFit
+			guard let current = automatic ? (Self.fitted(scene.allBox, in: canvasSize) ?? camera) : camera else { return }
+			draw(&context, camera: current)
 		}
 		.background(Color(uiColor: .systemBackground))
 		.contentShape(Rectangle())
@@ -76,13 +80,18 @@ struct GraphCanvasView: View {
 		return GraphGeometry.fit(box, width: size.width, height: size.height).k
 	}
 
-	private func fit(_ box: GraphGeometry.Box?, automatic: Bool = false) {
-		guard let box, size.width > 10, size.height > 10 else { return }
+	/// The camera that centers `box` in a canvas of `size`.
+	private static func fitted(_ box: GraphGeometry.Box?, in size: CGSize) -> GraphGeometry.Camera? {
+		guard let box, size.width > 10, size.height > 10 else { return nil }
 		var target = GraphGeometry.fit(box, width: size.width, height: size.height)
-		target.k = min(target.k, fitK * 8)
 		let center = Point(x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2)
 		target.x = size.width / 2 - center.x * target.k
 		target.y = size.height / 2 - center.y * target.k
+		return target
+	}
+
+	private func fit(_ box: GraphGeometry.Box?, automatic: Bool = false) {
+		guard let target = Self.fitted(box, in: size) else { return }
 		autoFit = automatic ? target : nil
 		withAnimation(.easeOut(duration: 0.25)) { camera = target }
 	}
