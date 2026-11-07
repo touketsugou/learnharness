@@ -45,9 +45,9 @@ extension APIClient {
 		return String(decoding: data, as: UTF8.self)
 	}
 
-	/// A learner-image snapshot's bytes (PNG/JPEG).
-	public func imageSnapshot(chatId: String, snapshotId: String) async throws -> Data {
-		try await send(makeRequest("GET", "/api/chats/\(encodePath(chatId))/images/\(encodePath(snapshotId))")).0
+	/// A learner-image snapshot (a processed photo the lesson shows or annotates).
+	public func imageSnapshot(chatId: String, snapshotId: String) async throws -> ImageSnapshot {
+		try await get("/api/chats/\(encodePath(chatId))/images/\(encodePath(snapshotId))", as: ImageSnapshot.self)
 	}
 
 	// MARK: Native view
@@ -173,7 +173,7 @@ extension APIClient {
 
 extension ISO8601DateFormatter {
 	/// JavaScript's toISOString() shape.
-	nonisolated(unsafe) static let lhFractional: ISO8601DateFormatter = {
+	nonisolated(unsafe) public static let lhFractional: ISO8601DateFormatter = {
 		let formatter = ISO8601DateFormatter()
 		formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 		return formatter
