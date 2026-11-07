@@ -53,7 +53,7 @@ struct SessionsView: View {
 			}
 		} detail: {
 			if let selection {
-				TranscriptView(chatId: selection)
+				SessionView(chatId: selection)
 					.id(selection)
 			} else {
 				ContentUnavailableView("Select a session", systemImage: "sidebar.left")
