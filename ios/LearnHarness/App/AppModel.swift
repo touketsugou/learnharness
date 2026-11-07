@@ -12,6 +12,12 @@ final class AppModel {
 	private(set) var store: OfflineStore?
 	/// The one dictation run at a time.
 	private(set) var dictation: DictationController?
+	/// The visible tab.
+	var tab: AppTab = .sessions
+	/// A session to open (from the graph), consumed by the session list.
+	var sessionRequest: String?
+	/// The native message to scroll to when that session opens.
+	private var messageFocus: [String: String] = [:]
 	let events = EventHub()
 	/// The first message of a just-created session, sent once it opens
 	/// (the web's stashed opening prompt).
@@ -56,6 +62,15 @@ final class AppModel {
 
 	var serverAddress: String? { defaults.string(forKey: Self.serverURLKey) }
 
+	/// Switch to Sessions and open `chatId`, scrolled to `messageId` when given.
+	func openSession(_ chatId: String, messageId: String?) {
+		if let messageId { messageFocus[chatId] = messageId } else { messageFocus[chatId] = nil }
+		sessionRequest = chatId
+		tab = .sessions
+	}
+
+	func takeMessageFocus(for chatId: String) -> String? { messageFocus.removeValue(forKey: chatId) }
+
 	func stashOpening(_ text: String, for chatId: String) { openingPrompts[chatId] = text }
 	func takeOpening(for chatId: String) -> String? { openingPrompts.removeValue(forKey: chatId) }
 
@@ -79,4 +94,9 @@ enum ConnectionError: LocalizedError {
 		case .missingToken: "Enter the access token configured on the server."
 		}
 	}
+}
+
+enum AppTab: Hashable {
+	case sessions
+	case graph
 }

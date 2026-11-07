@@ -8,11 +8,12 @@ struct SessionView: View {
 	let chatId: String
 	@Environment(AppModel.self) private var app
 	@State private var model: SessionModel?
+	@State private var focus: String?
 
 	var body: some View {
 		Group {
 			if let model {
-				SessionContent(model: model)
+				SessionContent(model: model, focus: $focus)
 			} else {
 				ProgressView()
 			}
@@ -20,6 +21,7 @@ struct SessionView: View {
 		.task {
 			guard model == nil, let client = app.client, let store = app.store else { return }
 			let session = SessionModel(chatId: chatId, client: client, store: store, events: app.events)
+			focus = app.takeMessageFocus(for: chatId)
 			model = session
 			session.start()
 			if let opening = app.takeOpening(for: chatId) { await session.sendText(opening) }
@@ -30,15 +32,20 @@ struct SessionView: View {
 
 private struct SessionContent: View {
 	let model: SessionModel
+	/// A native message to bring into view once the transcript loads (from the graph).
+	@Binding var focus: String?
 	@State private var showPlan = false
 
 	var body: some View {
-		ScrollView {
-			TranscriptList(model: model)
-				.padding(.horizontal, 16)
-				.padding(.vertical, 12)
-				.frame(maxWidth: 820)
-				.frame(maxWidth: .infinity)
+		ScrollViewReader { proxy in
+			ScrollView {
+				TranscriptList(model: model)
+					.padding(.horizontal, 16)
+					.padding(.vertical, 12)
+					.frame(maxWidth: 820)
+					.frame(maxWidth: .infinity)
+			}
+			.onChange(of: model.view?.messages.count ?? 0, initial: true) { scrollToFocus(proxy) }
 		}
 		.defaultScrollAnchor(.bottom)
 		.defaultScrollAnchor(.bottom, for: .sizeChanges)
@@ -62,6 +69,22 @@ private struct SessionContent: View {
 			}
 		}
 		.sheet(isPresented: $showPlan) { PlanSheet(model: model) }
+	}
+}
+
+extension SessionContent {
+	private func scrollToFocus(_ proxy: ScrollViewProxy) {
+		guard let messageId = focus, let messages = model.view?.messages, !messages.isEmpty else { return }
+		focus = nil
+		guard let target = SessionAnchor.target(forNativeMessage: messageId, in: messages) else { return }
+		// The message row first (so the lazy list renders it), then the
+		// exact prose part inside it.
+		Task { @MainActor in
+			try? await Task.sleep(for: .milliseconds(150))
+			proxy.scrollTo(target.messageID, anchor: .top)
+			try? await Task.sleep(for: .milliseconds(150))
+			withAnimation { proxy.scrollTo(target.partID, anchor: .top) }
+		}
 	}
 }
 
