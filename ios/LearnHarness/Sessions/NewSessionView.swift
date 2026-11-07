@@ -33,13 +33,16 @@ struct NewSessionView: View {
 				if let error {
 					Text(error).font(.callout).foregroundStyle(.red)
 				}
-				HStack(alignment: .bottom, spacing: 8) {
+				DictationStatusRow().padding(.horizontal, -14)
+				HStack(alignment: .bottom, spacing: 6) {
+					AttachButton(text: $text)
 					TextField(mode == .practice ? "What do you want to practice?" : "What do you want to learn?", text: $text, axis: .vertical)
 						.lineLimit(1...8)
 						.focused($focused)
 						.padding(.horizontal, 12)
 						.padding(.vertical, 9)
 						.background(RoundedRectangle(cornerRadius: 18).fill(Color(uiColor: .secondarySystemBackground)))
+					MicButton(text: $text)
 					if busy {
 						ProgressView().frame(width: 32, height: 32)
 					} else {
@@ -80,6 +83,7 @@ struct NewSessionView: View {
 	}
 
 	private func start() async {
+		await app.dictation?.finish()
 		let opening = text.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !opening.isEmpty, !busy, let client = app.client else { return }
 		busy = true
