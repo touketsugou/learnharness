@@ -1,0 +1,416 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		EFCD9FED3470B93718C7E450 /* LHAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 10577494DECDC850BBBCC814 /* LHAPI */; };
+		AC529D4A72AC16A2E758747C /* LHCache in Frameworks */ = {isa = PBXBuildFile; productRef = 448AFEEDB2BE3DF6CBF6A1F9 /* LHCache */; };
+		1D4F1678267FF3DFA8302C71 /* LHRender in Frameworks */ = {isa = PBXBuildFile; productRef = AB833348679DDC475C5570E0 /* LHRender */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D961FA1EB3CED11563466B7D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 08186F954A0238EC5EEC5F82 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 29B600FE1631A21916A70567;
+			remoteInfo = LearnHarness;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		7F76CFF5FD483E83E9C1DD7B /* LearnHarness.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LearnHarness.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C6E8A3F681481C2F6876979B /* LearnHarnessTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LearnHarnessTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E66089B85B3A4D02E4A3848A /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		806ABDD4EAF5E4E80C532E4C /* Debug-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Debug-Info.plist"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		22FB0EE8F650A615F016EBA8 /* LearnHarness */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = LearnHarness;
+			sourceTree = "<group>";
+		};
+		1D8D3574EE1854E02407840C /* LearnHarnessTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = LearnHarnessTests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DF234FE3FF5FE6063FB31045 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EFCD9FED3470B93718C7E450 /* LHAPI in Frameworks */,
+				AC529D4A72AC16A2E758747C /* LHCache in Frameworks */,
+				1D4F1678267FF3DFA8302C71 /* LHRender in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		148DAC2D9FF4D2B090CAD9E7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		86A152F17DA490076ABAA95A = {
+			isa = PBXGroup;
+			children = (
+				04ED6738D8B4C701792B288C /* Config */,
+				22FB0EE8F650A615F016EBA8 /* LearnHarness */,
+				1D8D3574EE1854E02407840C /* LearnHarnessTests */,
+				CA1BE5BEC0B87F3F413AB54A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		CA1BE5BEC0B87F3F413AB54A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				7F76CFF5FD483E83E9C1DD7B /* LearnHarness.app */,
+				C6E8A3F681481C2F6876979B /* LearnHarnessTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		04ED6738D8B4C701792B288C /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				E66089B85B3A4D02E4A3848A /* Base.xcconfig */,
+				806ABDD4EAF5E4E80C532E4C /* Debug-Info.plist */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		29B600FE1631A21916A70567 /* LearnHarness */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8A3833715D0EBC496C1C4696 /* Build configuration list for PBXNativeTarget "LearnHarness" */;
+			buildPhases = (
+				9C30789AA30897B71C18564A /* Sources */,
+				DF234FE3FF5FE6063FB31045 /* Frameworks */,
+				0B2C5DC5262995833431EF01 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				22FB0EE8F650A615F016EBA8 /* LearnHarness */,
+			);
+			name = LearnHarness;
+			packageProductDependencies = (
+				10577494DECDC850BBBCC814 /* LHAPI */,
+				448AFEEDB2BE3DF6CBF6A1F9 /* LHCache */,
+				AB833348679DDC475C5570E0 /* LHRender */,
+			);
+			productName = LearnHarness;
+			productReference = 7F76CFF5FD483E83E9C1DD7B /* LearnHarness.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B901401E1C59B7FEC3A68B10 /* LearnHarnessTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 11E4FEF928D42980F9CB5E5B /* Build configuration list for PBXNativeTarget "LearnHarnessTests" */;
+			buildPhases = (
+				7F81AB12C649B916DDAA04D7 /* Sources */,
+				148DAC2D9FF4D2B090CAD9E7 /* Frameworks */,
+				0C17624B871E5632FFB35662 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				763EA220BA23EE31A9DFEE25 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				1D8D3574EE1854E02407840C /* LearnHarnessTests */,
+			);
+			name = LearnHarnessTests;
+			productName = LearnHarnessTests;
+			productReference = C6E8A3F681481C2F6876979B /* LearnHarnessTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		08186F954A0238EC5EEC5F82 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2720;
+				LastUpgradeCheck = 2720;
+				TargetAttributes = {
+					29B600FE1631A21916A70567 = {
+						CreatedOnToolsVersion = 27.2;
+					};
+					B901401E1C59B7FEC3A68B10 = {
+						CreatedOnToolsVersion = 27.2;
+						TestTargetID = 29B600FE1631A21916A70567;
+					};
+				};
+			};
+			buildConfigurationList = 300F3E61005126EE6DF69B5E /* Build configuration list for PBXProject "LearnHarness" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 86A152F17DA490076ABAA95A;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B1D35B21087E63E275DFC923 /* XCLocalSwiftPackageReference "LHKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = CA1BE5BEC0B87F3F413AB54A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				29B600FE1631A21916A70567 /* LearnHarness */,
+				B901401E1C59B7FEC3A68B10 /* LearnHarnessTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0B2C5DC5262995833431EF01 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0C17624B871E5632FFB35662 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		9C30789AA30897B71C18564A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7F81AB12C649B916DDAA04D7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		763EA220BA23EE31A9DFEE25 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 29B600FE1631A21916A70567 /* LearnHarness */;
+			targetProxy = D961FA1EB3CED11563466B7D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		78187272CAEC295AC3E6E981 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = E66089B85B3A4D02E4A3848A /* Base.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		1AB6D19B8D1927DF126560AE /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = E66089B85B3A4D02E4A3848A /* Base.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		B36B391E918C7A1CAC489419 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(LH_DEVELOPMENT_TEAM)";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = LearnHarness;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(LH_BUNDLE_IDENTIFIER)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				INFOPLIST_FILE = Config/Debug-Info.plist;
+			};
+			name = Debug;
+		};
+		8E41AD848F4A31881CAAABE7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(LH_DEVELOPMENT_TEAM)";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = LearnHarness;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(LH_BUNDLE_IDENTIFIER)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D71C6BEEA5507C75F64AFC59 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(LH_DEVELOPMENT_TEAM)";
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(LH_BUNDLE_IDENTIFIER).tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LearnHarness.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LearnHarness";
+			};
+			name = Debug;
+		};
+		F40B564E37AC3E3E6CAFE2EE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(LH_DEVELOPMENT_TEAM)";
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(LH_BUNDLE_IDENTIFIER).tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LearnHarness.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LearnHarness";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		300F3E61005126EE6DF69B5E /* Build configuration list for PBXProject "LearnHarness" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				78187272CAEC295AC3E6E981 /* Debug */,
+				1AB6D19B8D1927DF126560AE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8A3833715D0EBC496C1C4696 /* Build configuration list for PBXNativeTarget "LearnHarness" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B36B391E918C7A1CAC489419 /* Debug */,
+				8E41AD848F4A31881CAAABE7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		11E4FEF928D42980F9CB5E5B /* Build configuration list for PBXNativeTarget "LearnHarnessTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D71C6BEEA5507C75F64AFC59 /* Debug */,
+				F40B564E37AC3E3E6CAFE2EE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		B1D35B21087E63E275DFC923 /* XCLocalSwiftPackageReference "LHKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = LHKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		10577494DECDC850BBBCC814 /* LHAPI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LHAPI;
+		};
+		448AFEEDB2BE3DF6CBF6A1F9 /* LHCache */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LHCache;
+		};
+		AB833348679DDC475C5570E0 /* LHRender */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LHRender;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 08186F954A0238EC5EEC5F82 /* Project object */;
+}

@@ -1,0 +1,9 @@
+// Shared build settings for the LearnHarness iOS app.
+// Personal signing values live in Local.xcconfig (git-ignored):
+//   cp Config/Local.example.xcconfig Config/Local.xcconfig
+// Simulator builds work without it; installing on a device needs both values.
+
+LH_DEVELOPMENT_TEAM =
+LH_BUNDLE_IDENTIFIER = com.example.learnharness
+
+#include? "Local.xcconfig"
