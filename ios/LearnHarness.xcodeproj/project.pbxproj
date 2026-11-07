@@ -10,6 +10,7 @@
 		EFCD9FED3470B93718C7E450 /* LHAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 10577494DECDC850BBBCC814 /* LHAPI */; };
 		AC529D4A72AC16A2E758747C /* LHCache in Frameworks */ = {isa = PBXBuildFile; productRef = 448AFEEDB2BE3DF6CBF6A1F9 /* LHCache */; };
 		1D4F1678267FF3DFA8302C71 /* LHRender in Frameworks */ = {isa = PBXBuildFile; productRef = AB833348679DDC475C5570E0 /* LHRender */; };
+		5E1C0A1D2B3C4D5E6F708193 /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 5E1C0A1D2B3C4D5E6F708192 /* icon.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,6 +28,7 @@
 		C6E8A3F681481C2F6876979B /* LearnHarnessTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LearnHarnessTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E66089B85B3A4D02E4A3848A /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		806ABDD4EAF5E4E80C532E4C /* Debug-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Debug-Info.plist"; sourceTree = "<group>"; };
+		5E1C0A1D2B3C4D5E6F708192 /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; name = icon.icon; path = ../build/icon.icon; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -67,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				04ED6738D8B4C701792B288C /* Config */,
+				5E1C0A1D2B3C4D5E6F708192 /* icon.icon */,
 				22FB0EE8F650A615F016EBA8 /* LearnHarness */,
 				1D8D3574EE1854E02407840C /* LearnHarnessTests */,
 				CA1BE5BEC0B87F3F413AB54A /* Products */,
@@ -187,6 +190,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5E1C0A1D2B3C4D5E6F708193 /* icon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -283,6 +287,7 @@
 				DEVELOPMENT_TEAM = "$(LH_DEVELOPMENT_TEAM)";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = icon;
 				INFOPLIST_KEY_CFBundleDisplayName = LearnHarness;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "LearnHarness listens to your voice while you dictate.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "LearnHarness turns your dictation into text on this device.";
@@ -311,6 +316,7 @@
 				DEVELOPMENT_TEAM = "$(LH_DEVELOPMENT_TEAM)";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = icon;
 				INFOPLIST_KEY_CFBundleDisplayName = LearnHarness;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "LearnHarness listens to your voice while you dictate.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "LearnHarness turns your dictation into text on this device.";
