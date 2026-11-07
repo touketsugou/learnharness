@@ -7,6 +7,7 @@
 - [Claude Code](claude-code.md) — use an installed CLI and troubleshoot its connection.
 - [Custom and local models](custom-providers.md) — configure an OpenAI-compatible endpoint.
 - [Cloud server](cloud-server.md) — run a single-user server in Docker for the iOS app and remote browsers.
+- [iOS app](../ios/README.md) — build, install on an iPhone or iPad, connect to your cloud server, and what the app covers.
 - [Context, caching, and costs](compaction-accounting.md) — understand the session meters and advanced cache preferences.
 - [Learning-data skill](../skills/learnharness/SKILL.md) — a read-only guide and standalone readers for local learning records.
 
