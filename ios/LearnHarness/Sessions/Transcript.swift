@@ -226,7 +226,8 @@ private struct AssistantPart: View {
 	@ViewBuilder private var content: some View {
 		switch part.type {
 		case "text":
-			MarkdownView(part.text ?? "")
+			// The id is the graph's scroll anchor (a proposition's source passage).
+			MarkdownView(part.text ?? "").id(part.id ?? "\(message.id)-\(index)")
 		case "reasoning":
 			ReasoningRow(text: part.text ?? "", live: isLastPart && model.isRunning)
 		case "step-start":

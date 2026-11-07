@@ -75,6 +75,8 @@ struct SessionsView: View {
 			.refreshable { await load() }
 			.task { await load() }
 			.onAppear(perform: subscribe)
+			.onAppear(perform: takeRequest)
+			.onChange(of: model.sessionRequest) { takeRequest() }
 			.onDisappear { if let listener { model.events.unsubscribe(listener) }; listener = nil }
 			// The target stays set while the alert dismisses; the button reads it.
 			.alert("Rename session", isPresented: $showRename, presenting: renaming) { chat in
@@ -118,6 +120,13 @@ struct SessionsView: View {
 				}
 			}
 		}
+	}
+
+	/// A session the graph asked to open.
+	private func takeRequest() {
+		guard let chatId = model.sessionRequest else { return }
+		model.sessionRequest = nil
+		selection = .chat(chatId)
 	}
 
 	private func startRename(_ chat: ChatListItem) {
