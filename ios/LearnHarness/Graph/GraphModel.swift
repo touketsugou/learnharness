@@ -15,6 +15,8 @@ final class GraphModel {
 	private(set) var runs: [ExtractionRun] = []
 	private(set) var offline = false
 	private(set) var loading = false
+	/// The graph settings' rendering switch: off shows the chains view.
+	private(set) var rendering = true
 	var error: String?
 	let imports: NotesImportQueue
 
@@ -41,9 +43,16 @@ final class GraphModel {
 		defer { loading = false }
 		async let settings = try? client.graphRenderSettings()
 		async let runs = try? client.extractionRuns()
+		async let record = try? client.settings()
 		await reloadGraph()
 		if let settings = await settings { self.settings = settings }
 		if let runs = await runs { self.runs = runs }
+		if let record = await record { applySettings(record.record) }
+	}
+
+	/// Follow a settings write (the Settings tab saved the graph section).
+	func applySettings(_ record: SettingsRecord) {
+		rendering = record.section("graph")["rendering"]?.boolValue ?? true
 	}
 
 	/// Snapshot + source directory; the offline copy when the server is unreachable.
