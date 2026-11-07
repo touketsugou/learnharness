@@ -10,6 +10,8 @@ final class AppModel {
 	private(set) var connection: ServerConnection?
 	private(set) var client: APIClient?
 	private(set) var store: OfflineStore?
+	/// The one dictation run at a time.
+	private(set) var dictation: DictationController?
 	let events = EventHub()
 	/// The first message of a just-created session, sent once it opens
 	/// (the web's stashed opening prompt).
@@ -41,6 +43,8 @@ final class AppModel {
 
 	/// Forget the token and this server's offline copies.
 	func signOut() async {
+		dictation?.cancel()
+		dictation = nil
 		await store?.clearAll()
 		tokens.delete()
 		defaults.removeObject(forKey: Self.serverURLKey)
@@ -60,6 +64,7 @@ final class AppModel {
 		let client = APIClient(connection: connection)
 		self.client = client
 		store = OfflineStore.forServer(connection.baseURL)
+		dictation = DictationController(client: client)
 		events.start(client: client)
 	}
 }

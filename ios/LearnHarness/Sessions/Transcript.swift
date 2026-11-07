@@ -104,7 +104,7 @@ struct FilePathText: View {
 	}
 
 	/// `path` spans that look like rooted paths become a 📎 chip with the file name.
-	static func attributed(_ text: String) -> AttributedString {
+	nonisolated static func attributed(_ text: String) -> AttributedString {
 		var result = AttributedString()
 		var rest = Substring(text)
 		while let open = rest.firstIndex(of: "`") {
@@ -114,7 +114,7 @@ struct FilePathText: View {
 			let inner = rest[afterOpen..<close.lowerBound].trimmingCharacters(in: .whitespaces)
 			result += AttributedString(rest[..<open])
 			if inner.hasPrefix("/") || inner.hasPrefix("~/") {
-				var chip = AttributedString("📎 " + ((inner as NSString).lastPathComponent))
+				var chip = AttributedString("📎 " + chipName(for: inner))
 				chip.font = .callout.weight(.medium)
 				chip.foregroundColor = .accentColor
 				result += chip
@@ -125,6 +125,15 @@ struct FilePathText: View {
 		}
 		result += AttributedString(rest)
 		return result
+	}
+
+	/// The chip's file name: the last path component, without the
+	/// `<uuid>-` prefix the server gives uploads (src/server/native-uploads.ts).
+	nonisolated static func chipName(for path: String) -> String {
+		let name = (path as NSString).lastPathComponent
+		guard let match = name.prefixMatch(of: /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/),
+			match.output.count < name.count else { return name }
+		return String(name[match.range.upperBound...])
 	}
 }
 

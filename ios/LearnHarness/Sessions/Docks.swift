@@ -10,6 +10,7 @@ struct SessionDock: View {
 	var body: some View {
 		VStack(spacing: 0) {
 			Divider()
+			if !model.offline { DictationStatusRow() }
 			Group {
 				if model.offline {
 					Label("Offline — read-only copy", systemImage: "wifi.slash")
@@ -35,6 +36,7 @@ struct SessionDock: View {
 struct ComposerView: View {
 	let model: SessionModel
 	let nextReady: Bool
+	@Environment(AppModel.self) private var app
 	@State private var text = ""
 	@FocusState private var focused: Bool
 
@@ -46,7 +48,9 @@ struct ComposerView: View {
 				}
 				.buttonStyle(.bordered)
 			}
-			HStack(alignment: .bottom, spacing: 8) {
+			HStack(alignment: .bottom, spacing: 6) {
+				AttachButton(text: $text)
+					.disabled(model.isCompacting)
 				TextField(placeholder, text: $text, axis: .vertical)
 					.lineLimit(1...6)
 					.focused($focused)
@@ -54,6 +58,7 @@ struct ComposerView: View {
 					.padding(.vertical, 9)
 					.background(RoundedRectangle(cornerRadius: 18).fill(Color(uiColor: .secondarySystemBackground)))
 					.disabled(model.isCompacting)
+				MicButton(text: $text)
 				if model.isRunning && text.trimmingCharacters(in: .whitespaces).isEmpty {
 					Button { Task { await model.stopTurn() } } label: {
 						Image(systemName: "stop.circle.fill").font(.title)
@@ -79,10 +84,14 @@ struct ComposerView: View {
 		return model.view?.messages.isEmpty ?? true ? "What do you want to learn?" : "Message"
 	}
 
+	/// Finish any dictation first, so the whole transcript goes out.
 	private func send() {
-		let message = text
-		text = ""
-		Task { await model.sendText(message) }
+		Task {
+			await app.dictation?.finish()
+			let message = text
+			text = ""
+			await model.sendText(message)
+		}
 	}
 }
 
@@ -91,6 +100,7 @@ struct ComposerView: View {
 struct QuestionDockView: View {
 	let model: SessionModel
 	let dock: NativeQuestionDock
+	@Environment(AppModel.self) private var app
 
 	@State private var selected: Set<Int> = []
 	@State private var otherSelected = false
@@ -145,13 +155,13 @@ struct QuestionDockView: View {
 	// is captured here and rides the answer (or the skip).
 	private var reveal: some View {
 		VStack(alignment: .leading, spacing: 10) {
-			TextField("Your thinking while reading (optional)…", text: Binding(
-				get: { model.readingThinking[dock.key] ?? "" },
-				set: { model.readingThinking[dock.key] = $0 }
-			), axis: .vertical)
-			.lineLimit(1...4)
-			.padding(10)
-			.background(RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .secondarySystemBackground)))
+			HStack(alignment: .bottom, spacing: 6) {
+				TextField("Your thinking while reading (optional)…", text: readingThinking, axis: .vertical)
+					.lineLimit(1...4)
+					.padding(10)
+					.background(RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .secondarySystemBackground)))
+				MicButton(text: readingThinking)
+			}
 			Button {
 				model.revealedQuestions.insert(dock.key)
 			} label: {
@@ -160,6 +170,10 @@ struct QuestionDockView: View {
 			.buttonStyle(.borderedProminent)
 		}
 		.padding(14)
+	}
+
+	private var readingThinking: Binding<String> {
+		Binding(get: { model.readingThinking[dock.key] ?? "" }, set: { model.readingThinking[dock.key] = $0 })
 	}
 
 	@ViewBuilder private var form: some View {
@@ -219,6 +233,8 @@ struct QuestionDockView: View {
 			Button("Skip", role: .destructive) { Task { await model.dismissQuestion(dock) } }
 				.buttonStyle(.bordered)
 			Spacer()
+			// The dictation target: the answer (text mode) or "Your thinking".
+			MicButton(text: isSelect ? $thinking : $answerText)
 			Button(action: submit) { Text("Submit").frame(minWidth: 90) }
 				.buttonStyle(.borderedProminent)
 				.disabled(!canSubmit)
@@ -236,6 +252,13 @@ struct QuestionDockView: View {
 	}
 
 	private func submit() {
+		Task {
+			await app.dictation?.finish()
+			submitNow()
+		}
+	}
+
+	private func submitNow() {
 		guard canSubmit else { return }
 		let trimmedThinking = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
 		let request = AnswerRequest(
@@ -305,6 +328,7 @@ private struct ConfidencePicker: View {
 struct PracticeDockView: View {
 	let model: SessionModel
 	let problem: NativeProblemDock
+	@Environment(AppModel.self) private var app
 	@State private var thinking = ""
 	@State private var showStatement = true
 
@@ -331,10 +355,15 @@ struct PracticeDockView: View {
 					Button { Task { await model.stopTurn() } } label: { Image(systemName: "stop.circle.fill") }
 						.tint(.red)
 				}
+				MicButton(text: $thinking)
 				Button("Submit") {
-					let text = thinking
-					thinking = ""
-					Task { await model.submitThinking(problemCallId: problem.toolCallId, text: text) }
+					Task {
+						await app.dictation?.finish()
+						let text = thinking
+						guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+						thinking = ""
+						await model.submitThinking(problemCallId: problem.toolCallId, text: text)
+					}
 				}
 				.buttonStyle(.borderedProminent)
 				.disabled(thinking.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !model.canAct)
