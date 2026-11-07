@@ -13,6 +13,9 @@ struct RootView: View {
 				Tab("Graph", systemImage: "point.3.connected.trianglepath.dotted", value: AppTab.graph) {
 					GraphScreen()
 				}
+				Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {
+					SettingsScreen()
+				}
 			}
 		} else {
 			ConnectionView()

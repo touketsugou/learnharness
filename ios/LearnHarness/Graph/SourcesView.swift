@@ -5,8 +5,16 @@ import SwiftUI
 /// reasoning chains → statements. Organize with rename / move / new folder;
 /// select sources and folders to delete them.
 struct SourcesView: View {
+	/// The Graph tab's home when rendering is off: its own actions in place
+	/// of Done, and the graph status pills above the list.
+	struct Home {
+		var actions: AnyView
+		var status: AnyView
+	}
+
 	let model: GraphModel
-	/// Show a node on the canvas.
+	var home: Home?
+	/// Show a node (on the canvas, or its details at home).
 	let onShowNode: (String) -> Void
 
 	@Environment(\.dismiss) private var dismiss
@@ -40,12 +48,16 @@ struct SourcesView: View {
 						}
 					}
 					.listStyle(.sidebar)
+					.safeAreaInset(edge: .top, spacing: 0) { home?.status }
+					.refreshable { if home != nil { await model.reload() } }
+				} else if let error = model.error, home != nil {
+					ContentUnavailableView("Couldn’t load the graph", systemImage: "exclamationmark.triangle", description: Text(error))
 				} else {
 					ProgressView()
 				}
 			}
 			.searchable(text: $query, prompt: "Search chains")
-			.navigationTitle("Chains & sources")
+			.navigationTitle(home == nil ? "Chains & sources" : "Graph")
 			.navigationBarTitleDisplayMode(.inline)
 			.toolbar { toolbar }
 			.alert(naming?.title ?? "", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } }), presenting: naming) { task in
@@ -184,7 +196,7 @@ struct SourcesView: View {
 
 	@ToolbarContentBuilder private var toolbar: some ToolbarContent {
 		ToolbarItem(placement: .cancellationAction) {
-			Button("Done") { dismiss() }
+			if let home { home.actions } else { Button("Done") { dismiss() } }
 		}
 		ToolbarItemGroup(placement: .primaryAction) {
 			Menu {

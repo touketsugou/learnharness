@@ -62,15 +62,6 @@ struct SessionsView: View {
 						.accessibilityLabel("New session")
 						.disabled(offline)
 				}
-				ToolbarItem(placement: .topBarLeading) {
-					Menu {
-						Button("Sign Out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-							Task { await model.signOut() }
-						}
-					} label: {
-						Image(systemName: "ellipsis.circle")
-					}
-				}
 			}
 			.refreshable { await load() }
 			.task { await load() }
