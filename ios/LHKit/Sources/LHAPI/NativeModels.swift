@@ -286,11 +286,21 @@ public struct NativeCoverage: Sendable, Hashable, Codable {
 public struct ChatModelChoice: Sendable, Hashable, Codable {
 	public var provider: String
 	public var id: String
+
+	public init(provider: String, id: String) {
+		self.provider = provider
+		self.id = id
+	}
 }
 
 public struct ChatSettings: Sendable, Hashable, Codable {
 	public var model: ChatModelChoice?
 	public var thinkingLevel: String?
+
+	public init(model: ChatModelChoice? = nil, thinkingLevel: String? = nil) {
+		self.model = model
+		self.thinkingLevel = thinkingLevel
+	}
 }
 
 // MARK: - The view

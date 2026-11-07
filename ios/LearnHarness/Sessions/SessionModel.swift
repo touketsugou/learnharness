@@ -34,6 +34,10 @@ final class SessionModel {
 	var revealedQuestions: Set<String> = []
 	/// Reading-thinking drafts per question key.
 	var readingThinking: [String: String] = [:]
+	/// The model picker's data (configured providers' models).
+	private(set) var catalog: ModelCatalog?
+	/// The stored settings a picker write returned, shown until the next view.
+	private var writtenSettings: ChatSettings?
 
 	private var streamTask: Task<Void, Never>?
 	private var streaming = false
@@ -57,6 +61,26 @@ final class SessionModel {
 	/// Any learner input that starts a turn waits for this to be false.
 	var canAct: Bool { !offline && !submitting && !isRunning && !isCompacting }
 
+	/// What this session runs: its own record, each field falling back to
+	/// the strong slot (a legacy unstamped session; resolveConversationSpec).
+	var effectiveModel: ChatModelChoice? {
+		(writtenSettings ?? state?.settings)?.model ?? catalog?.defaults?.model
+	}
+
+	var storedThinkingLevel: String? {
+		(writtenSettings ?? state?.settings)?.thinkingLevel ?? catalog?.defaults?.thinkingLevel
+	}
+
+	var effectiveCatalogEntry: ModelCatalogEntry? {
+		guard let model = effectiveModel else { return nil }
+		return catalog?.models.first { $0.provider == model.provider && $0.id == model.id }
+	}
+
+	/// The stored level, or the one the engine resolves for an unset record.
+	var effectiveThinkingLevel: String? {
+		storedThinkingLevel ?? effectiveCatalogEntry.map { ThinkingLevels.defaultLevel($0.supportedLevels) }
+	}
+
 	var visibleSteers: [QueuedSteer] {
 		let ids = Set(view?.messages.map(\.id) ?? [])
 		return steerQueue.filter { !ids.contains($0.id) }
@@ -75,6 +99,7 @@ final class SessionModel {
 		}
 		attach()
 		Task { await refreshJobs() }
+		Task { await refreshCatalog() }
 	}
 
 	func stop() {
@@ -129,6 +154,7 @@ final class SessionModel {
 
 	private func apply(_ next: NativeSessionView) {
 		view = next
+		writtenSettings = nil
 		offline = false
 		submitting = false
 		if let pending = pendingText, next.messages.contains(where: { $0.role == .user && $0.parts.contains { $0.text == pending } }) {
@@ -153,6 +179,7 @@ final class SessionModel {
 		case .reconnected:
 			if !streaming { attach() }
 			Task { await refreshJobs() }
+			Task { await refreshCatalog() }
 		case .event(let event):
 			guard event.chatId == chatId || event.type == "activity-changed" else { return }
 			switch event.type {
@@ -207,6 +234,9 @@ final class SessionModel {
 				}
 				try? await Task.sleep(for: .milliseconds(500))
 				if let snapshot = try? await client.jobs(chatId: chatId), snapshot.turnInFlight { continue }
+			} catch APIError.refused(code: "models_not_configured", _) {
+				fail("No model is set up on the server yet. Choose one in Settings, then send again.")
+				return
 			} catch {
 				fail((error as? APIError)?.message ?? error.localizedDescription)
 				return
@@ -310,6 +340,32 @@ final class SessionModel {
 
 	func setInverted(messageId: String, inverted: Bool) async {
 		try? await client.setArtifactInverted(chatId: chatId, messageId: messageId, inverted: inverted)
+	}
+
+	// MARK: Model and thinking level
+
+	func refreshCatalog() async {
+		if let fresh = try? await client.modelCatalog() { catalog = fresh }
+	}
+
+	/// A model pick keeps the stored level (clamped server-side) or populates
+	/// the new model's default level — the web picker's rule.
+	func pickModel(_ entry: ModelCatalogEntry) async {
+		let level = ThinkingLevels.populate(storedThinkingLevel, supported: entry.supportedLevels)
+		await writeSettings(ChatSettings(model: entry.choice, thinkingLevel: level))
+	}
+
+	func pickThinkingLevel(_ level: String) async {
+		guard let model = effectiveModel else { return }
+		await writeSettings(ChatSettings(model: model, thinkingLevel: level))
+	}
+
+	private func writeSettings(_ settings: ChatSettings) async {
+		do {
+			writtenSettings = try await client.updateChatSettings(chatId, settings)
+		} catch {
+			requestError = (error as? APIError)?.message ?? error.localizedDescription
+		}
 	}
 
 	// MARK: Export and images
