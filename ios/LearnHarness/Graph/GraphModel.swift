@@ -80,6 +80,8 @@ final class GraphModel {
 		switch signal {
 		case .reconnected:
 			Task { await reload() }
+		case .suspended:
+			break
 		case .event(let event):
 			switch event.type {
 			case "activity-changed":

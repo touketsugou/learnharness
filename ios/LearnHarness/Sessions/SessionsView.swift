@@ -105,6 +105,8 @@ struct SessionsView: View {
 			switch signal {
 			case .reconnected:
 				Task { await load() }
+			case .suspended:
+				break
 			case .event(let event):
 				if ["chats-changed", "turn-started", "turn-settled", "record-changed", "compaction-changed"].contains(event.type) {
 					Task { await load() }
