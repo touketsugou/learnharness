@@ -160,8 +160,6 @@ struct SessionsView: View {
 			chats = fresh
 			offline = false
 			try? await store.saveChatList(fresh)
-		} catch APIError.unauthorized {
-			error = "The server rejected the saved access token. Sign out and connect again."
 		} catch APIError.transport {
 			offline = true
 			chats = await store.loadChatList() ?? chats

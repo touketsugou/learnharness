@@ -53,6 +53,44 @@ struct AppModelTests {
 		#expect(defaults.string(forKey: "serverURL") == nil)
 	}
 
+	@Test func aRejectedTokenAsksForANewOneAndKeepsTheServer() {
+		let defaults = defaults()
+		defaults.set("https://learn.example.com", forKey: "serverURL")
+		let tokens = MemoryTokenStore()
+		tokens.token = "t"
+		let model = AppModel(tokens: tokens, defaults: defaults)
+		model.tokenRejected(model.connection!)
+		#expect(model.client == nil)
+		#expect(model.tokenWasRejected)
+		#expect(model.store != nil)
+		#expect(tokens.token == "t")
+		#expect(model.serverAddress == "https://learn.example.com")
+	}
+
+	@Test func aLateRejectionOfAReplacedConnectionIsIgnored() {
+		let defaults = defaults()
+		defaults.set("https://learn.example.com", forKey: "serverURL")
+		let tokens = MemoryTokenStore()
+		tokens.token = "new"
+		let model = AppModel(tokens: tokens, defaults: defaults)
+		model.tokenRejected(ServerConnection(baseURL: URL(string: "https://learn.example.com")!, token: "old"))
+		#expect(model.client != nil)
+		#expect(!model.tokenWasRejected)
+	}
+
+	@Test func signOutAfterARejectionStartsOver() async {
+		let defaults = defaults()
+		defaults.set("https://learn.example.com", forKey: "serverURL")
+		let tokens = MemoryTokenStore()
+		tokens.token = "t"
+		let model = AppModel(tokens: tokens, defaults: defaults)
+		model.tokenRejected(model.connection!)
+		await model.signOut()
+		#expect(!model.tokenWasRejected)
+		#expect(model.store == nil)
+		#expect(tokens.token == nil)
+	}
+
 	@Test func keychainRoundTrip() throws {
 		let store = KeychainTokenStore(service: "lh-tests-\(UUID().uuidString)")
 		try store.save("secret")
