@@ -90,6 +90,8 @@ cd ios && xcodebuild -project LearnHarness.xcodeproj -scheme LearnHarness -desti
 
 `LHAPITests` decode every file in `tests/fixtures/native/`, the JSON the server's own projection produces (`scripts/export-native-fixtures.ts`). A server contract change that breaks the app fails here. The package tests run on a simulator; `swift test` on macOS does not build `LHCache`.
 
+CI (`.github/workflows/ios.yml`) runs both suites on a macOS runner with Xcode 27.2 for every push to `main` or pull request that touches `ios/` or `tests/fixtures/native/`.
+
 ## How the app talks to the server
 
 - `GET /api/native/chats/:id/stream` is the session wire: `snapshot` → `patch`* → `settled` while a turn runs, or a single `settled` frame when idle. `NativeViewReducer` applies frames. `GET /api/events` signals idle-time changes (sessions, sources, extraction runs, subscriptions).
