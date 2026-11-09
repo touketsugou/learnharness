@@ -176,6 +176,11 @@ final class SessionModel {
 
 	private func handle(_ signal: EventHub.Signal) {
 		switch signal {
+		case .suspended:
+			// The app is in the background; `.reconnected` reattaches.
+			streamTask?.cancel()
+			streamTask = nil
+			streaming = false
 		case .reconnected:
 			if !streaming { attach() }
 			Task { await refreshJobs() }
