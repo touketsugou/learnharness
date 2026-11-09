@@ -27,7 +27,8 @@ public final class MathRenderer {
 		if let hit = cache[key] { return hit }
 		if cache.count > 600 { cache.removeAll(keepingCapacity: true) }
 		let color = UIColor.label.resolvedColor(with: UITraitCollection(userInterfaceStyle: dark ? .dark : .light))
-		var math = MathImage(latex: latex, fontSize: fontSize, textColor: color, labelMode: display ? .display : .text, textAlignment: .left)
+		_ = LaTeXCompat.registerSymbols
+		var math = MathImage(latex: LaTeXCompat.rewrite(latex), fontSize: fontSize, textColor: color, labelMode: display ? .display : .text, textAlignment: .left)
 		let (error, image, layout) = math.asImage()
 		let rendered: Rendered? = if error == nil, let image, let layout {
 			Rendered(image: image, ascent: layout.ascent, descent: layout.descent)
