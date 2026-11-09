@@ -5,6 +5,8 @@ import Foundation
 public final class APIClient: Sendable {
 	public let connection: ServerConnection
 	private let session: URLSession
+	/// Called on every 401 (request or stream) before the error is thrown.
+	private let onUnauthorized: (@Sendable () -> Void)?
 
 	public static func makeSession() -> URLSession {
 		let configuration = URLSessionConfiguration.ephemeral
@@ -17,9 +19,10 @@ public final class APIClient: Sendable {
 		return URLSession(configuration: configuration)
 	}
 
-	public init(connection: ServerConnection, session: URLSession = APIClient.makeSession()) {
+	public init(connection: ServerConnection, session: URLSession = APIClient.makeSession(), onUnauthorized: (@Sendable () -> Void)? = nil) {
 		self.connection = connection
 		self.session = session
+		self.onUnauthorized = onUnauthorized
 	}
 
 	// MARK: Requests
@@ -51,7 +54,10 @@ public final class APIClient: Sendable {
 			throw APIError.transport(error.localizedDescription)
 		}
 		guard let http = response as? HTTPURLResponse else { throw APIError.transport("No HTTP response.") }
-		guard (200..<300).contains(http.statusCode) else { throw APIError.from(status: http.statusCode, body: data) }
+		guard (200..<300).contains(http.statusCode) else {
+			if http.statusCode == 401 { onUnauthorized?() }
+			throw APIError.from(status: http.statusCode, body: data)
+		}
 		return (data, http)
 	}
 
@@ -84,12 +90,14 @@ public final class APIClient: Sendable {
 			return request
 		}()
 		let session = self.session
+		let onUnauthorized = self.onUnauthorized
 		return AsyncThrowingStream { continuation in
 			let task = Task {
 				do {
 					let (bytes, response) = try await session.bytes(for: request)
 					guard let http = response as? HTTPURLResponse else { throw APIError.transport("No HTTP response.") }
 					guard (200..<300).contains(http.statusCode) else {
+						if http.statusCode == 401 { onUnauthorized?() }
 						var body = Data()
 						for try await byte in bytes { body.append(byte); if body.count > 65_536 { break } }
 						throw APIError.from(status: http.statusCode, body: body)
