@@ -11,6 +11,9 @@ final class AppModel {
 	private(set) var connection: ServerConnection?
 	private(set) var client: APIClient?
 	private(set) var store: OfflineStore?
+	/// The server rejected the saved token (a 401): the connection screen
+	/// asks for the current one, keeping the address and offline copies.
+	private(set) var tokenWasRejected = false
 	/// The one dictation run at a time.
 	private(set) var dictation: DictationController?
 	/// The visible tab.
@@ -46,6 +49,9 @@ final class AppModel {
 		guard !trimmed.isEmpty else { throw ConnectionError.missingToken }
 		let candidate = ServerConnection(baseURL: url, token: trimmed)
 		try await APIClient(connection: candidate).verifyConnection()
+		// Reconnecting after a rejection to another server: the old one's
+		// copies go, as on Sign Out.
+		if tokenWasRejected, let store, connection?.baseURL != url { await store.clearAll() }
 		try tokens.save(trimmed)
 		defaults.set(url.absoluteString, forKey: Self.serverURLKey)
 		activate(candidate)
@@ -63,7 +69,19 @@ final class AppModel {
 		client = nil
 		store = nil
 		settingsRecord = nil
+		tokenWasRejected = false
 		tab = .sessions
+	}
+
+	/// A 401 from `rejected`'s client: leave for the connection screen. A late
+	/// 401 from a connection already replaced is ignored.
+	func tokenRejected(_ rejected: ServerConnection) {
+		guard client != nil, connection == rejected else { return }
+		tokenWasRejected = true
+		dictation?.cancel()
+		dictation = nil
+		events.stop()
+		client = nil
 	}
 
 	var serverAddress: String? { defaults.string(forKey: Self.serverURLKey) }
@@ -92,7 +110,10 @@ final class AppModel {
 
 	private func activate(_ connection: ServerConnection) {
 		self.connection = connection
-		let client = APIClient(connection: connection)
+		tokenWasRejected = false
+		let client = APIClient(connection: connection, onUnauthorized: { [weak self] in
+			Task { @MainActor in self?.tokenRejected(connection) }
+		})
 		self.client = client
 		store = OfflineStore.forServer(connection.baseURL)
 		dictation = DictationController(client: client)

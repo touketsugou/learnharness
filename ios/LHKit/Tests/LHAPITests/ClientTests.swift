@@ -74,3 +74,45 @@ struct RequestTests {
 		#expect(FilePathQuoting.quote("/tmp/a```") == "```` /tmp/a``` ````")
 	}
 }
+
+/// Answers every request with a 401.
+private final class UnauthorizedProtocol: URLProtocol {
+	override class func canInit(with request: URLRequest) -> Bool { true }
+	override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+	override func startLoading() {
+		let response = HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
+		client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+		client?.urlProtocol(self, didLoad: Data("{\"error\":\"Unauthorized\"}".utf8))
+		client?.urlProtocolDidFinishLoading(self)
+	}
+	override func stopLoading() {}
+}
+
+private final class Counter: @unchecked Sendable {
+	private let lock = NSLock()
+	private var count = 0
+	func increment() { lock.withLock { count += 1 } }
+	var value: Int { lock.withLock { count } }
+}
+
+@Suite("Rejected token")
+struct UnauthorizedTests {
+	private func client(_ counter: Counter) -> APIClient {
+		let configuration = URLSessionConfiguration.ephemeral
+		configuration.protocolClasses = [UnauthorizedProtocol.self]
+		return APIClient(connection: ServerConnection(baseURL: URL(string: "https://lh.example")!, token: "old"),
+			session: URLSession(configuration: configuration), onUnauthorized: { counter.increment() })
+	}
+
+	@Test func requestsReportA401() async {
+		let counter = Counter()
+		await #expect(throws: APIError.unauthorized) { try await client(counter).verifyConnection() }
+		#expect(counter.value == 1)
+	}
+
+	@Test func streamsReportA401() async {
+		let counter = Counter()
+		await #expect(throws: APIError.unauthorized) { for try await _ in client(counter).events("/api/events") {} }
+		#expect(counter.value == 1)
+	}
+}
