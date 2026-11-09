@@ -2,6 +2,7 @@ import Foundation
 import LHAPI
 import LHCache
 import Observation
+import SwiftUI
 
 /// App-wide state: the configured server, its API client and offline store.
 @MainActor
@@ -66,6 +67,16 @@ final class AppModel {
 	}
 
 	var serverAddress: String? { defaults.string(forKey: Self.serverURLKey) }
+
+	/// Close the server connections in the background and reopen them on
+	/// return (the server keeps running turns meanwhile).
+	func sceneChanged(_ phase: ScenePhase) {
+		switch phase {
+		case .background: events.suspend()
+		case .active: events.resume()
+		default: break
+		}
+	}
 
 	/// Switch to Sessions and open `chatId`, scrolled to `messageId` when given.
 	func openSession(_ chatId: String, messageId: String?) {
