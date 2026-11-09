@@ -28,14 +28,37 @@ public final class MathRenderer {
 		if cache.count > 600 { cache.removeAll(keepingCapacity: true) }
 		let color = UIColor.label.resolvedColor(with: UITraitCollection(userInterfaceStyle: dark ? .dark : .light))
 		_ = LaTeXCompat.registerSymbols
-		var math = MathImage(latex: LaTeXCompat.rewrite(latex), fontSize: fontSize, textColor: color, labelMode: display ? .display : .text, textAlignment: .left)
-		let (error, image, layout) = math.asImage()
-		let rendered: Rendered? = if error == nil, let image, let layout {
-			Rendered(image: image, ascent: layout.ascent, descent: layout.descent)
-		} else {
-			nil
-		}
+		let rendered = Self.typeset(LaTeXCompat.rewrite(latex), fontSize: fontSize, color: color, display: display)
 		cache[key] = rendered
 		return rendered
+	}
+
+	/// SwiftMath's `MathImage.asImage()` (left-aligned, no insets), with
+	/// `MathAtomFix` applied between parsing and typesetting.
+	static func typeset(_ latex: String, fontSize: CGFloat, color: UIColor, display: Bool) -> Rendered? {
+		var error: NSError?
+		guard let mathList = MTMathListBuilder.build(fromString: latex, error: &error), error == nil else { return nil }
+		MathAtomFix.apply(mathList)
+
+		let label = MTMathUILabel()
+		label.font = MathFont.latinModernFont.mtfont(size: fontSize)
+		label.fontSize = fontSize // also read by the vertical centering in layout
+		label.textColor = color
+		label.labelMode = display ? .display : .text
+		label.textAlignment = .left
+		label.mathList = mathList
+		let content = label.intrinsicContentSize
+		let size = CGSize(width: ceil(content.width), height: ceil(content.height))
+		// Laying out in the image's bounds positions the display list as MathImage does.
+		label.frame = CGRect(origin: .zero, size: size)
+		label.layoutSubviews()
+		guard let displayList = label.displayList else { return nil }
+
+		let image = UIGraphicsImageRenderer(size: size).image { context in
+			context.cgContext.translateBy(x: 0, y: size.height)
+			context.cgContext.scaleBy(x: 1, y: -1)
+			displayList.draw(context.cgContext)
+		}
+		return Rendered(image: image, ascent: displayList.ascent, descent: displayList.descent)
 	}
 }
