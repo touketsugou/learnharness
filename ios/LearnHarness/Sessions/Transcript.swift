@@ -11,8 +11,16 @@ struct TranscriptList: View {
 	var body: some View {
 		let messages = model.view?.messages ?? []
 		let teachDivider = TranscriptPhases.teachDivider(in: messages)
-		LazyVStack(alignment: .leading, spacing: 14) {
-			if messages.isEmpty, !model.submitting, !model.isRunning {
+		let pending = model.pendingText
+		let steers = model.visibleSteers
+		let placeholder = messages.isEmpty && !model.submitting && !model.isRunning
+		let hasRows = !messages.isEmpty || placeholder
+		// Each part of an assistant message is a row of its own. A row holding a
+		// whole message grows without bound over consecutive questions, and the
+		// lazy stack's height estimate then runs far past the real content, which
+		// leaves the bottom-anchored viewport in empty space.
+		LazyVStack(alignment: .leading, spacing: 10) {
+			if placeholder {
 				ContentUnavailableView("New session", systemImage: "sparkles", description: Text("The teacher will open by probing what you already know."))
 			}
 			ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
@@ -20,17 +28,30 @@ struct TranscriptList: View {
 					model: model,
 					message: message,
 					isLast: index == messages.count - 1,
-					teachBoundary: teachDivider?.messageIndex == index ? .some(teachDivider?.partIndex) : nil
+					teachBoundary: teachDivider?.messageIndex == index ? .some(teachDivider?.partIndex) : nil,
+					hasPrevious: index > 0,
+					beforeAssistant: index + 1 < messages.count && messages[index + 1].role == .assistant
 				)
 			}
-			if let pending = model.pendingText {
-				UserRow(text: pending).opacity(0.6)
+			if let pending {
+				UserRow(text: pending).opacity(0.6).messageGap(above: hasRows)
 			}
-			ForEach(model.visibleSteers) { steer in
+			ForEach(Array(steers.enumerated()), id: \.element.id) { index, steer in
 				UserRow(text: steer.text, label: "YOU · QUEUED").opacity(0.6)
+					.messageGap(above: hasRows || pending != nil || index > 0)
 			}
-			StatusRows(model: model)
+			StatusRows(model: model, hasPrevious: hasRows || pending != nil || !steers.isEmpty)
 		}
+	}
+}
+
+private extension View {
+	/// Rows sit 10 apart, the gap between the parts of one message. Messages
+	/// sit 14 apart: the rows that always draw (learner rows, the rows after
+	/// the last message) add the other 4, since an assistant message's first
+	/// or last part may draw nothing.
+	func messageGap(above: Bool = false, below: Bool = false) -> some View {
+		padding(.top, above ? 4 : 0).padding(.bottom, below ? 4 : 0)
 	}
 }
 
@@ -40,18 +61,18 @@ private struct MessageRow: View {
 	let isLast: Bool
 	/// nil: no divider here; .some(nil): before the message; .some(i): at part i.
 	let teachBoundary: Int??
+	let hasPrevious: Bool
+	let beforeAssistant: Bool
 
 	var body: some View {
 		if message.role == .user {
-			userContent
+			userContent.messageGap(above: hasPrevious, below: beforeAssistant)
 		} else {
-			VStack(alignment: .leading, spacing: 10) {
-				if case .some(.none) = teachBoundary { PhaseDivider(title: "Teaching") }
-				ForEach(Array(message.parts.enumerated()), id: \.offset) { index, part in
-					AssistantPart(model: model, message: message, part: part, index: index,
-								  isLastPart: isLast && index == message.parts.count - 1,
-								  teachBoundaryHere: teachBoundary == .some(.some(index)))
-				}
+			if case .some(.none) = teachBoundary { PhaseDivider(title: "Teaching") }
+			ForEach(Array(message.parts.enumerated()), id: \.offset) { index, part in
+				AssistantPart(model: model, message: message, part: part, index: index,
+							  isLastPart: isLast && index == message.parts.count - 1,
+							  teachBoundaryHere: teachBoundary == .some(.some(index)))
 			}
 		}
 	}
@@ -155,21 +176,31 @@ struct PhaseDivider: View {
 /// "Retrying…", the activity line, the compaction line, failures.
 private struct StatusRows: View {
 	let model: SessionModel
+	/// Whether a row sits above these.
+	let hasPrevious: Bool
 
 	var body: some View {
-		if model.isCompacting {
-			WorkingLine(text: "Compacting context…")
-		} else if model.submitting || (model.isRunning && model.view?.messages.last?.role != .assistant) {
-			WorkingLine(text: "Thinking…")
+		let working = working
+		let failure = model.state?.failure
+		if let working {
+			WorkingLine(text: working).messageGap(above: hasPrevious)
 		}
-		if let failure = model.state?.failure {
+		if let failure {
 			FailureBanner(message: failure.message, canRetry: failure.canRetry && model.canAct) {
 				Task { await model.retryFailedTurn() }
 			}
+			.messageGap(above: hasPrevious || working != nil)
 		}
 		if let error = model.requestError {
 			FailureBanner(message: error, canRetry: false) {}
+				.messageGap(above: hasPrevious || working != nil || failure != nil)
 		}
+	}
+
+	private var working: String? {
+		if model.isCompacting { return "Compacting context…" }
+		if model.submitting || (model.isRunning && model.view?.messages.last?.role != .assistant) { return "Thinking…" }
+		return nil
 	}
 }
 
