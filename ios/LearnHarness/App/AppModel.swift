@@ -29,6 +29,8 @@ final class AppModel {
 	/// The first message of a just-created session, sent once it opens
 	/// (the web's stashed opening prompt).
 	private var openingPrompts: [String: String] = [:]
+	/// Unsent input per session, for as long as the app runs.
+	private var drafts: [String: SessionDrafts] = [:]
 
 	private let tokens: TokenStore
 	private let defaults: UserDefaults
@@ -52,6 +54,7 @@ final class AppModel {
 		// Reconnecting after a rejection to another server: the old one's
 		// copies go, as on Sign Out.
 		if tokenWasRejected, let store, connection?.baseURL != url { await store.clearAll() }
+		if connection?.baseURL != url { drafts.removeAll() }
 		try tokens.save(trimmed)
 		defaults.set(url.absoluteString, forKey: Self.serverURLKey)
 		activate(candidate)
@@ -62,6 +65,7 @@ final class AppModel {
 		dictation?.cancel()
 		dictation = nil
 		await store?.clearAll()
+		drafts.removeAll()
 		tokens.delete()
 		defaults.removeObject(forKey: Self.serverURLKey)
 		events.stop()
@@ -107,6 +111,16 @@ final class AppModel {
 
 	func stashOpening(_ text: String, for chatId: String) { openingPrompts[chatId] = text }
 	func takeOpening(for chatId: String) -> String? { openingPrompts.removeValue(forKey: chatId) }
+
+	/// `chatId`'s unsent input, created on first use.
+	func drafts(for chatId: String) -> SessionDrafts {
+		if let existing = drafts[chatId] { return existing }
+		let created = SessionDrafts()
+		drafts[chatId] = created
+		return created
+	}
+
+	func forgetDrafts(for chatId: String) { drafts[chatId] = nil }
 
 	private func activate(_ connection: ServerConnection) {
 		self.connection = connection

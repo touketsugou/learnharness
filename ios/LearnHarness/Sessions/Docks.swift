@@ -37,10 +37,11 @@ struct ComposerView: View {
 	let model: SessionModel
 	let nextReady: Bool
 	@Environment(AppModel.self) private var app
-	@State private var text = ""
 	@FocusState private var focused: Bool
 
 	var body: some View {
+		@Bindable var drafts = model.drafts
+		let text = drafts.composer
 		VStack(alignment: .leading, spacing: 8) {
 			if nextReady && !model.isRunning && !model.submitting {
 				Button { Task { await model.nextProblem() } } label: {
@@ -49,16 +50,16 @@ struct ComposerView: View {
 				.buttonStyle(.bordered)
 			}
 			HStack(alignment: .bottom, spacing: 6) {
-				AttachButton(text: $text)
+				AttachButton(text: $drafts.composer)
 					.disabled(model.isCompacting)
-				TextField(placeholder, text: $text, axis: .vertical)
+				TextField(placeholder, text: $drafts.composer, axis: .vertical)
 					.lineLimit(1...6)
 					.focused($focused)
 					.padding(.horizontal, 12)
 					.padding(.vertical, 9)
 					.background(RoundedRectangle(cornerRadius: 18).fill(Color(uiColor: .secondarySystemBackground)))
 					.disabled(model.isCompacting)
-				MicButton(text: $text)
+				MicButton(text: $drafts.composer)
 				if model.isRunning && text.trimmingCharacters(in: .whitespaces).isEmpty {
 					Button { Task { await model.stopTurn() } } label: {
 						Image(systemName: "stop.circle.fill").font(.title)
@@ -88,8 +89,8 @@ struct ComposerView: View {
 	private func send() {
 		Task {
 			await app.dictation?.finish()
-			let message = text
-			text = ""
+			let message = model.drafts.composer
+			model.drafts.composer = ""
 			await model.sendText(message)
 		}
 	}
@@ -102,22 +103,19 @@ struct QuestionDockView: View {
 	let dock: NativeQuestionDock
 	@Environment(AppModel.self) private var app
 
-	@State private var selected: Set<Int> = []
-	@State private var otherSelected = false
-	@State private var other = ""
-	@State private var dontKnow = false
-	@State private var answerText = ""
-	@State private var thinking = ""
-	@State private var confidenceIndex: Int
 	@State private var expanded = true
 
-	init(model: SessionModel, dock: NativeQuestionDock) {
-		self.model = model
-		self.dock = dock
-		_confidenceIndex = State(initialValue: dock.defaultConfidenceIndex)
+	/// This question's form, kept in the session's drafts.
+	private var draft: QuestionFormDraft {
+		get { model.drafts.questions[dock.key] ?? QuestionFormDraft(confidenceIndex: dock.defaultConfidenceIndex) }
+		nonmutating set { model.drafts.questions[dock.key] = newValue }
 	}
 
-	private var revealed: Bool { !dock.needsReveal || model.revealedQuestions.contains(dock.key) }
+	private var draftBinding: Binding<QuestionFormDraft> {
+		Binding(get: { draft }, set: { draft = $0 })
+	}
+
+	private var revealed: Bool { !dock.needsReveal || model.drafts.revealedQuestions.contains(dock.key) }
 	private var isSelect: Bool { dock.mode != .text }
 	private var isQuiz: Bool { dock.kind == "quiz" }
 
@@ -132,8 +130,9 @@ struct QuestionDockView: View {
 
 	private var canSubmit: Bool {
 		if model.submitting || model.isCompacting || model.isRunning { return false }
-		if !isSelect { return !answerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-		return dontKnow || (otherSelected && !other.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) || !selected.isEmpty
+		let draft = draft
+		if !isSelect { return !draft.answerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+		return draft.dontKnow || (draft.otherSelected && !draft.other.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) || !draft.selected.isEmpty
 	}
 
 	var body: some View {
@@ -167,7 +166,7 @@ struct QuestionDockView: View {
 				MicButton(text: readingThinking)
 			}
 			Button {
-				model.revealedQuestions.insert(dock.key)
+				model.drafts.revealedQuestions.insert(dock.key)
 			} label: {
 				Label("Check your understanding", systemImage: "play.fill").frame(maxWidth: .infinity)
 			}
@@ -177,7 +176,7 @@ struct QuestionDockView: View {
 	}
 
 	private var readingThinking: Binding<String> {
-		Binding(get: { model.readingThinking[dock.key] ?? "" }, set: { model.readingThinking[dock.key] = $0 })
+		Binding(get: { model.drafts.readingThinking[dock.key] ?? "" }, set: { model.drafts.readingThinking[dock.key] = $0 })
 	}
 
 	private var header: some View {
@@ -193,6 +192,7 @@ struct QuestionDockView: View {
 	}
 
 	@ViewBuilder private var form: some View {
+		let draft = draft
 		VStack(alignment: .leading, spacing: 12) {
 			MarkdownView(dock.question).fontWeight(.medium)
 			if let context = dock.context, !context.isEmpty {
@@ -200,34 +200,37 @@ struct QuestionDockView: View {
 			}
 			if isSelect {
 				ForEach(Array(dock.options.enumerated()), id: \.offset) { index, option in
-					OptionRow(option: option, selected: selected.contains(index), multi: dock.mode == .multiSelect) { toggle(index) }
-						.disabled(dontKnow)
+					OptionRow(option: option, selected: draft.selected.contains(index), multi: dock.mode == .multiSelect) { toggle(index) }
+						.disabled(draft.dontKnow)
 				}
 				if dock.kind == "ask" {
-					OptionRow(option: QuizOption(label: "Other…", value: "", description: nil), selected: otherSelected, multi: dock.mode == .multiSelect) {
-						otherSelected.toggle()
-						if otherSelected, dock.mode == .singleSelect { selected.removeAll() }
+					OptionRow(option: QuizOption(label: "Other…", value: "", description: nil), selected: draft.otherSelected, multi: dock.mode == .multiSelect) {
+						self.draft.otherSelected.toggle()
+						if self.draft.otherSelected, dock.mode == .singleSelect { self.draft.selected.removeAll() }
 					}
-					if otherSelected {
-						TextField("Type your own answer…", text: $other, axis: .vertical).textFieldStyle(.roundedBorder)
+					if draft.otherSelected {
+						TextField("Type your own answer…", text: draftBinding.other, axis: .vertical).textFieldStyle(.roundedBorder)
 					}
 				}
 				if isQuiz {
-					Toggle(isOn: Binding(get: { dontKnow }, set: { dontKnow = $0; if $0 { selected.removeAll(); otherSelected = false } })) {
+					Toggle(isOn: Binding(get: { self.draft.dontKnow }, set: { on in
+						self.draft.dontKnow = on
+						if on { self.draft.selected.removeAll(); self.draft.otherSelected = false }
+					})) {
 						Text("I don't know")
 					}
 					.toggleStyle(.button)
 					.buttonStyle(.bordered)
 				}
 				if isQuiz {
-					ConfidencePicker(stops: dock.confidenceStops, index: $confidenceIndex, disabled: dontKnow)
+					ConfidencePicker(stops: dock.confidenceStops, index: draftBinding.confidenceIndex, disabled: draft.dontKnow)
 				}
-				TextField("Your thinking (optional)…", text: $thinking, axis: .vertical)
+				TextField("Your thinking (optional)…", text: draftBinding.thinking, axis: .vertical)
 					.lineLimit(2...6)
 					.padding(10)
 					.background(RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .secondarySystemBackground)))
 			} else {
-				TextField("Your answer…", text: $answerText, axis: .vertical)
+				TextField("Your answer…", text: draftBinding.answerText, axis: .vertical)
 					.lineLimit(3...10)
 					.padding(10)
 					.background(RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .secondarySystemBackground)))
@@ -241,7 +244,7 @@ struct QuestionDockView: View {
 				.buttonStyle(.bordered)
 			Spacer()
 			// The dictation target: the answer (text mode) or "Your thinking".
-			MicButton(text: isSelect ? $thinking : $answerText)
+			MicButton(text: isSelect ? draftBinding.thinking : draftBinding.answerText)
 			Button(action: submit) { Text("Submit").frame(minWidth: 90) }
 				.buttonStyle(.borderedProminent)
 				.disabled(!canSubmit)
@@ -251,10 +254,10 @@ struct QuestionDockView: View {
 
 	private func toggle(_ index: Int) {
 		if dock.mode == .multiSelect {
-			if selected.contains(index) { selected.remove(index) } else { selected.insert(index) }
+			if draft.selected.contains(index) { draft.selected.remove(index) } else { draft.selected.insert(index) }
 		} else {
-			selected = selected.contains(index) ? [] : [index]
-			otherSelected = false
+			draft.selected = draft.selected.contains(index) ? [] : [index]
+			draft.otherSelected = false
 		}
 	}
 
@@ -267,14 +270,15 @@ struct QuestionDockView: View {
 
 	private func submitNow() {
 		guard canSubmit else { return }
-		let trimmedThinking = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
+		let draft = draft
+		let trimmedThinking = draft.thinking.trimmingCharacters(in: .whitespacesAndNewlines)
 		let request = AnswerRequest(
-			dontKnow: dontKnow,
-			values: selected.sorted().map { dock.options[$0].value },
-			other: otherSelected ? other : nil,
-			text: isSelect ? nil : answerText,
+			dontKnow: draft.dontKnow,
+			values: draft.selected.sorted().map { dock.options[$0].value },
+			other: draft.otherSelected ? draft.other : nil,
+			text: isSelect ? nil : draft.answerText,
 			thinking: isSelect && !trimmedThinking.isEmpty ? trimmedThinking : nil,
-			confidence: isQuiz ? dock.confidenceStops[safe: confidenceIndex] : nil
+			confidence: isQuiz ? dock.confidenceStops[safe: draft.confidenceIndex] : nil
 		)
 		Task { await model.answer(dock, request: request) }
 	}
@@ -336,8 +340,12 @@ struct PracticeDockView: View {
 	let model: SessionModel
 	let problem: NativeProblemDock
 	@Environment(AppModel.self) private var app
-	@State private var thinking = ""
 	@State private var showStatement = true
+
+	/// The answer being written, kept in the session's drafts.
+	private var thinking: Binding<String> {
+		Binding(get: { model.drafts.problems[problem.toolCallId] ?? "" }, set: { model.drafts.problems[problem.toolCallId] = $0 })
+	}
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 10) {
@@ -350,7 +358,7 @@ struct PracticeDockView: View {
 				CardLabel(text: "Problem\(problem.mode.map { " · \($0)" } ?? "")", systemImage: "puzzlepiece")
 			}
 			.tint(.secondary)
-			TextField("Your thinking or answer…", text: $thinking, axis: .vertical)
+			TextField("Your thinking or answer…", text: thinking, axis: .vertical)
 				.lineLimit(2...8)
 				.padding(10)
 				.background(RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .secondarySystemBackground)))
@@ -362,18 +370,18 @@ struct PracticeDockView: View {
 					Button { Task { await model.stopTurn() } } label: { Image(systemName: "stop.circle.fill") }
 						.tint(.red)
 				}
-				MicButton(text: $thinking)
+				MicButton(text: thinking)
 				Button("Submit") {
 					Task {
 						await app.dictation?.finish()
-						let text = thinking
+						let text = thinking.wrappedValue
 						guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-						thinking = ""
+						thinking.wrappedValue = ""
 						await model.submitThinking(problemCallId: problem.toolCallId, text: text)
 					}
 				}
 				.buttonStyle(.borderedProminent)
-				.disabled(thinking.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !model.canAct)
+				.disabled(thinking.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !model.canAct)
 			}
 		}
 		.padding(14)
