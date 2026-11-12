@@ -19,7 +19,14 @@ struct SessionView: View {
 			}
 		}
 		.task {
-			guard model == nil, let client = app.client, let store = app.store else { return }
+			// Back from another tab (which stopped the model): follow again,
+			// and take a passage the graph asked for meanwhile.
+			if let model {
+				if let requested = app.takeMessageFocus(for: chatId) { focus = requested }
+				model.start()
+				return
+			}
+			guard let client = app.client, let store = app.store else { return }
 			let session = SessionModel(chatId: chatId, client: client, store: store, events: app.events)
 			focus = app.takeMessageFocus(for: chatId)
 			model = session
@@ -46,6 +53,7 @@ private struct SessionContent: View {
 					.frame(maxWidth: .infinity)
 			}
 			.onChange(of: model.view?.messages.count ?? 0, initial: true) { scrollToFocus(proxy) }
+			.onChange(of: focus) { scrollToFocus(proxy) }
 		}
 		.defaultScrollAnchor(.bottom)
 		.defaultScrollAnchor(.bottom, for: .sizeChanges)
