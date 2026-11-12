@@ -15,10 +15,11 @@ struct TranscriptList: View {
 		let steers = model.visibleSteers
 		let placeholder = messages.isEmpty && !model.submitting && !model.isRunning
 		let hasRows = !messages.isEmpty || placeholder
-		// Each part of an assistant message is a row of its own. A row holding a
-		// whole message grows without bound over consecutive questions, and the
-		// lazy stack's height estimate then runs far past the real content, which
-		// leaves the bottom-anchored viewport in empty space.
+		// Each part of an assistant message is a row of its own, and each block of
+		// its text. A row holding a whole message grows without bound over
+		// consecutive questions, and one tall row near the bottom makes the lazy
+		// stack's height estimate run far past the real content, which leaves the
+		// bottom-anchored viewport in empty space.
 		LazyVStack(alignment: .leading, spacing: 10) {
 			if placeholder {
 				ContentUnavailableView("New session", systemImage: "sparkles", description: Text("The teacher will open by probing what you already know."))
@@ -257,8 +258,14 @@ private struct AssistantPart: View {
 	@ViewBuilder private var content: some View {
 		switch part.type {
 		case "text":
-			// The id is the graph's scroll anchor (a proposition's source passage).
-			MarkdownView(part.text ?? "").id(part.id ?? "\(message.id)-\(index)")
+			// A row per Markdown block, so a long reply makes no tall row. The
+			// first block's id is the graph's scroll anchor (a proposition's
+			// source passage).
+			let text = part.text ?? ""
+			let anchor = part.id ?? "\(message.id)-\(index)"
+			ForEach(0..<MarkdownBlock.count(text), id: \.self) { block in
+				MarkdownBlock(text, index: block).id(block == 0 ? anchor : "\(anchor)#\(block)")
+			}
 		case "reasoning":
 			ReasoningRow(text: part.text ?? "", live: isLastPart && model.isRunning)
 		case "step-start":

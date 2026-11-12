@@ -37,6 +37,41 @@ public struct MarkdownView: View {
 	}
 }
 
+/// One top-level block (a paragraph, list, code block, display math…) of the
+/// same Markdown MarkdownView renders, so a lazy list can lay out a long text
+/// as rows of bounded height. Blocks stacked 10 apart look like MarkdownView.
+public struct MarkdownBlock: View {
+	private let source: String
+	private let index: Int
+	private let textStyle: Font.TextStyle
+
+	@Environment(\.colorScheme) private var colorScheme
+
+	public init(_ source: String, index: Int, textStyle: Font.TextStyle = .body) {
+		self.source = source
+		self.index = index
+		self.textStyle = textStyle
+	}
+
+	/// The number of top-level blocks in `source`; whitespace alone has none.
+	public static func count(_ source: String) -> Int { ParsedMarkdown.cached(source).blocks.count }
+
+	public var body: some View {
+		let blocks = ParsedMarkdown.cached(source).blocks
+		Group {
+			if index < blocks.count {
+				switch blocks[index] {
+				case .display(let latex):
+					DisplayMathView(latex: latex, textStyle: textStyle)
+				case .markdown(let block, let math):
+					BlockView(block: block, context: RenderContext(math: math, textStyle: textStyle, dark: colorScheme == .dark))
+				}
+			}
+		}
+		.frame(maxWidth: .infinity, alignment: .leading)
+	}
+}
+
 // MARK: - Parsing cache
 
 final class ParsedMarkdown: @unchecked Sendable {
@@ -45,13 +80,26 @@ final class ParsedMarkdown: @unchecked Sendable {
 		case display(String)
 	}
 
+	enum Block {
+		case markdown(any Markup, [String])
+		case display(String)
+	}
+
 	let chunks: [Chunk]
+	/// The chunks' top-level blocks in order, for MarkdownBlock.
+	let blocks: [Block]
 
 	init(_ source: String) {
 		chunks = MathSegmenter.segment(source).map { chunk in
 			switch chunk {
 			case .markdown(let text, let math): .markdown(Markdown.Document(parsing: text), math)
 			case .displayMath(let latex): .display(latex)
+			}
+		}
+		blocks = chunks.flatMap { chunk -> [Block] in
+			switch chunk {
+			case .markdown(let document, let math): document.children.map { .markdown($0, math) }
+			case .display(let latex): [.display(latex)]
 			}
 		}
 	}
