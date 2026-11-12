@@ -139,10 +139,14 @@ struct QuestionDockView: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
 			if revealed {
-				ScrollView {
-					form.padding(.horizontal, 14).padding(.top, 12)
+				// The label row stays put; the question beneath it scrolls.
+				VStack(alignment: .leading, spacing: 0) {
+					header.padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 12)
+					ScrollView {
+						form.padding(.horizontal, 14)
+					}
+					.scrollBounceBehavior(.basedOnSize)
 				}
-				.scrollBounceBehavior(.basedOnSize)
 				.frame(maxHeight: expanded ? 460 : 120)
 				actions
 			} else {
@@ -176,17 +180,20 @@ struct QuestionDockView: View {
 		Binding(get: { model.readingThinking[dock.key] ?? "" }, set: { model.readingThinking[dock.key] = $0 })
 	}
 
+	private var header: some View {
+		HStack {
+			CardLabel(text: label)
+			Spacer()
+			Button { withAnimation { expanded.toggle() } } label: {
+				Image(systemName: expanded ? "chevron.down" : "chevron.up")
+			}
+			.buttonStyle(.borderless)
+			.accessibilityLabel(expanded ? "Collapse" : "Expand")
+		}
+	}
+
 	@ViewBuilder private var form: some View {
 		VStack(alignment: .leading, spacing: 12) {
-			HStack {
-				CardLabel(text: label)
-				Spacer()
-				Button { withAnimation { expanded.toggle() } } label: {
-					Image(systemName: expanded ? "chevron.down" : "chevron.up")
-				}
-				.buttonStyle(.borderless)
-				.accessibilityLabel(expanded ? "Collapse" : "Expand")
-			}
 			MarkdownView(dock.question).fontWeight(.medium)
 			if let context = dock.context, !context.isEmpty {
 				MarkdownView(context, textStyle: .callout).foregroundStyle(.secondary)
