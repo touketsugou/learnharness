@@ -27,7 +27,7 @@ struct SessionView: View {
 				return
 			}
 			guard let client = app.client, let store = app.store else { return }
-			let session = SessionModel(chatId: chatId, client: client, store: store, events: app.events)
+			let session = SessionModel(chatId: chatId, client: client, store: store, events: app.events, drafts: app.drafts(for: chatId))
 			focus = app.takeMessageFocus(for: chatId)
 			model = session
 			session.start()

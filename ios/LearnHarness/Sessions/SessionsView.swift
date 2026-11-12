@@ -147,6 +147,7 @@ struct SessionsView: View {
 			if selection == .chat(chat.id) { selection = nil }
 			chats.removeAll { $0.id == chat.id }
 			await model.store?.removeView(chatId: chat.id)
+			model.forgetDrafts(for: chat.id)
 			await load()
 		} catch {
 			self.error = (error as? APIError)?.message ?? error.localizedDescription

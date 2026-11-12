@@ -15,10 +15,18 @@ final class SessionModel {
 		let text: String
 	}
 
+	/// Where text that failed to send goes back.
+	private enum Unsent {
+		case composer(String)
+		case problem(String, text: String)
+	}
+
 	let chatId: String
 	private let client: APIClient
 	private let store: OfflineStore
 	private let events: EventHub
+	/// The unsent input, owned by AppModel so it outlives this page.
+	let drafts: SessionDrafts
 
 	private(set) var view: NativeSessionView?
 	private(set) var offline = false
@@ -30,10 +38,6 @@ final class SessionModel {
 	var requestError: String?
 	private(set) var jobs: [JobRecord] = []
 	private(set) var steerQueue: [QueuedSteer] = []
-	/// Question keys whose "Check your understanding" reveal was opened.
-	var revealedQuestions: Set<String> = []
-	/// Reading-thinking drafts per question key.
-	var readingThinking: [String: String] = [:]
 	/// The model picker's data (configured providers' models).
 	private(set) var catalog: ModelCatalog?
 	/// The stored settings a picker write returned, shown until the next view.
@@ -46,11 +50,12 @@ final class SessionModel {
 	private var continuationBlocked = false
 	private var steerSeq = 0
 
-	init(chatId: String, client: APIClient, store: OfflineStore, events: EventHub) {
+	init(chatId: String, client: APIClient, store: OfflineStore, events: EventHub, drafts: SessionDrafts) {
 		self.chatId = chatId
 		self.client = client
 		self.store = store
 		self.events = events
+		self.drafts = drafts
 	}
 
 	// MARK: Derived
@@ -157,6 +162,7 @@ final class SessionModel {
 		writtenSettings = nil
 		offline = false
 		submitting = false
+		drafts.forgetResolved(dock: next.state.dock)
 		if let pending = pendingText, next.messages.contains(where: { $0.role == .user && $0.parts.contains { $0.text == pending } }) {
 			pendingText = nil
 		}
@@ -217,13 +223,17 @@ final class SessionModel {
 
 	/// POST an input event, waiting out a running turn like the web client
 	/// (poll, then re-POST the same input), then follow the new turn.
-	private func post(_ input: ChatInput) async {
+	private func post(_ input: ChatInput, unsent: Unsent? = nil) async {
 		if case .continue = input {} else { continuationBlocked = false }
-		await submit { client, chatId in try await client.sendInput(chatId: chatId, input) }
+		await submit(unsent: unsent) { client, chatId in try await client.sendInput(chatId: chatId, input) }
 	}
 
-	private func submit(_ request: @escaping @Sendable (APIClient, String) async throws -> Void) async {
-		guard !offline else { return }
+	/// On failure, `unsent` goes back where it was typed.
+	private func submit(unsent: Unsent? = nil, _ request: @escaping @Sendable (APIClient, String) async throws -> Void) async {
+		guard !offline else {
+			restore(unsent)
+			return
+		}
 		submitting = true
 		requestError = nil
 		let deadline = ContinuousClock.now + .seconds(30)
@@ -234,26 +244,39 @@ final class SessionModel {
 				return
 			} catch APIError.conflict(let message) {
 				if ContinuousClock.now > deadline {
-					fail("A turn is already running — try again in a moment. (\(message))")
+					fail("A turn is already running — try again in a moment. (\(message))", unsent: unsent)
 					return
 				}
 				try? await Task.sleep(for: .milliseconds(500))
 				if let snapshot = try? await client.jobs(chatId: chatId), snapshot.turnInFlight { continue }
 			} catch APIError.refused(code: "models_not_configured", _) {
-				fail("No model is set up on the server yet. Choose one in Settings, then send again.")
+				fail("No model is set up on the server yet. Choose one in Settings, then send again.", unsent: unsent)
 				return
 			} catch {
-				fail((error as? APIError)?.message ?? error.localizedDescription)
+				fail((error as? APIError)?.message ?? error.localizedDescription, unsent: unsent)
 				return
 			}
 		}
 	}
 
-	private func fail(_ message: String) {
+	private func fail(_ message: String, unsent: Unsent?) {
 		submitting = false
 		pendingText = nil
 		requestError = message
 		continuationBlocked = true
+		restore(unsent)
+	}
+
+	/// Never an automatic retry: the text waits for the learner to send again.
+	private func restore(_ unsent: Unsent?) {
+		switch unsent {
+		case .composer(let text):
+			drafts.composer = SessionDrafts.restoring(text, into: drafts.composer)
+		case .problem(let id, let text):
+			drafts.problems[id] = SessionDrafts.restoring(text, into: drafts.problems[id] ?? "")
+		case nil:
+			break
+		}
 	}
 
 	/// The composer: a plain message, or a steer while a turn runs.
@@ -265,7 +288,7 @@ final class SessionModel {
 			return
 		}
 		pendingText = text
-		await post(.text(text))
+		await post(.text(text), unsent: .composer(text))
 	}
 
 	private func steer(_ text: String) async {
@@ -278,16 +301,17 @@ final class SessionModel {
 			// The turn settled mid-send: send it as a plain message instead.
 			steerQueue.removeAll { $0.id == id }
 			pendingText = text
-			await post(.text(text))
+			await post(.text(text), unsent: .composer(text))
 		} catch {
 			steerQueue.removeAll { $0.id == id }
 			requestError = (error as? APIError)?.message ?? error.localizedDescription
+			restore(.composer(text))
 		}
 	}
 
 	func answer(_ dock: NativeQuestionDock, request: AnswerRequest) async {
 		var withReading = request
-		if dock.needsReveal, let reading = readingThinking[dock.key]?.trimmingCharacters(in: .whitespacesAndNewlines), !reading.isEmpty {
+		if dock.needsReveal, let reading = drafts.readingThinking[dock.key]?.trimmingCharacters(in: .whitespacesAndNewlines), !reading.isEmpty {
 			withReading.readingThinking = reading
 		}
 		let final = withReading
@@ -299,7 +323,7 @@ final class SessionModel {
 	/// Skip the question silently (no turn; the next message wakes the agent).
 	/// While a turn runs, the server parks the skip and the turn is stopped.
 	func dismissQuestion(_ dock: NativeQuestionDock) async {
-		let reading = dock.needsReveal ? readingThinking[dock.key] : nil
+		let reading = dock.needsReveal ? drafts.readingThinking[dock.key] : nil
 		do {
 			try await client.dismissQuestion(chatId: chatId, toolCallId: dock.toolCallId, kind: dock.kind, questionText: dock.question, readingThinking: reading)
 			if isRunning { try? await client.abortTurn(chatId: chatId) }
@@ -312,7 +336,7 @@ final class SessionModel {
 	func submitThinking(problemCallId: String, text: String) async {
 		let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !trimmed.isEmpty else { return }
-		await post(.thinking(problemCallId: problemCallId, text: trimmed))
+		await post(.thinking(problemCallId: problemCallId, text: trimmed), unsent: .problem(problemCallId, text: text))
 	}
 
 	func discardProblem(_ problemCallId: String) async {
