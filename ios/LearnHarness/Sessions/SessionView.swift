@@ -42,19 +42,33 @@ private struct SessionContent: View {
 	/// A native message to bring into view once the transcript loads (from the graph).
 	@Binding var focus: String?
 	@State private var showPlan = false
+	@State private var position = ScrollPosition()
+	@State private var atTop = false
 
 	var body: some View {
 		ScrollViewReader { proxy in
 			ScrollView {
 				TranscriptList(model: model)
 					.padding(.horizontal, 16)
-					.padding(.vertical, 12)
+					.padding(.vertical, TranscriptList.verticalPadding)
 					.frame(maxWidth: 820)
 					.frame(maxWidth: .infinity)
 			}
 			.onChange(of: model.view?.messages.count ?? 0, initial: true) { scrollToFocus(proxy) }
 			.onChange(of: focus) { scrollToFocus(proxy) }
+			.onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top < 1 } action: { _, top in
+				atTop = top
+			}
+			// A transcript shorter than the screen can't scroll: it shows more
+			// until it fills the screen.
+			.onScrollGeometryChange(for: CGFloat.self) { $0.containerSize.height - $0.contentSize.height } action: { _, room in
+				if room > 0 { model.showEarlier() }
+			}
+			.onScrollPhaseChange { _, phase in
+				if phase == .idle, atTop { showEarlier() }
+			}
 		}
+		.scrollPosition($position)
 		.defaultScrollAnchor(.bottom)
 		.defaultScrollAnchor(.bottom, for: .sizeChanges)
 		.scrollDismissesKeyboard(.interactively)
@@ -81,12 +95,19 @@ private struct SessionContent: View {
 }
 
 extension SessionContent {
+	/// Scrolled to the top and stopped: the page before joins the transcript.
+	/// The scroll view would keep its offset and show the new page's top, so
+	/// it scrolls to the row that was on top, where it was.
+	private func showEarlier() {
+		if model.showEarlier() { position.scrollTo(id: EarlierMark.id, anchor: .top) }
+	}
+
 	private func scrollToFocus(_ proxy: ScrollViewProxy) {
 		guard let messageId = focus, let messages = model.view?.messages, !messages.isEmpty else { return }
 		focus = nil
 		guard let target = SessionAnchor.target(forNativeMessage: messageId, in: messages) else { return }
-		// The message row first (so the lazy list renders it), then the
-		// exact prose part inside it.
+		model.reveal(partID: target.partID)
+		// The message row first, then the exact prose part inside it.
 		Task { @MainActor in
 			try? await Task.sleep(for: .milliseconds(150))
 			proxy.scrollTo(target.messageID, anchor: .top)

@@ -29,6 +29,12 @@ final class SessionModel {
 	let drafts: SessionDrafts
 
 	private(set) var view: NativeSessionView?
+	/// The transcript parts not shown yet (TranscriptWindow); set by the first view.
+	private(set) var hiddenParts = 0
+	/// Where the transcript started before the last showEarlier: the view
+	/// keeps that row in place.
+	private(set) var earlierMark: Int?
+	private var windowOpened = false
 	private(set) var offline = false
 	/// A learner action is on its way (the Thinking… placeholder).
 	private(set) var submitting = false
@@ -159,6 +165,7 @@ final class SessionModel {
 
 	private func apply(_ next: NativeSessionView) {
 		view = next
+		openWindow()
 		writtenSettings = nil
 		offline = false
 		submitting = false
@@ -172,6 +179,7 @@ final class SessionModel {
 		submitting = false
 		if let cached = await store.loadView(chatId: chatId) {
 			view = cached
+			openWindow()
 			offline = true
 		} else if view == nil {
 			requestError = "The server can't be reached and this session has no offline copy."
@@ -217,6 +225,31 @@ final class SessionModel {
 		guard let state, state.needsContinuation, state.status == .idle, state.failure == nil,
 			!continuationBlocked, !submitting else { return }
 		await post(.continue)
+	}
+
+	// MARK: Transcript window
+
+	/// The first view opens the transcript on its last page; parts that come
+	/// later stay in view.
+	private func openWindow() {
+		guard !windowOpened, let view else { return }
+		windowOpened = true
+		hiddenParts = TranscriptWindow.opening(view.messages)
+	}
+
+	/// The learner reached the top: show the page before. False when there is none.
+	@discardableResult func showEarlier() -> Bool {
+		let shown = TranscriptWindow.start(hiding: hiddenParts, in: view?.messages ?? [])
+		guard shown.hiddenParts > 0 else { return false }
+		earlierMark = shown.hiddenParts
+		hiddenParts = max(0, shown.hiddenParts - TranscriptWindow.page)
+		return true
+	}
+
+	/// Show everything from this part on (a passage the graph asked for).
+	func reveal(partID: String) {
+		guard let messages = view?.messages, let before = TranscriptWindow.partsBefore(partID: partID, in: messages) else { return }
+		hiddenParts = min(hiddenParts, before)
 	}
 
 	// MARK: Turn-starting input

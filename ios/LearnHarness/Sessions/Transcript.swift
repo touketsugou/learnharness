@@ -6,31 +6,37 @@ import SwiftUI
 /// full-width quote rows ("YOU" + rail), the agent's output is prose with
 /// cards inline, markers render as cards or dividers.
 struct TranscriptList: View {
+	/// The padding above and below the transcript in its scroll view.
+	static let verticalPadding: CGFloat = 12
+
 	let model: SessionModel
 
 	var body: some View {
 		let messages = model.view?.messages ?? []
 		let teachDivider = TranscriptPhases.teachDivider(in: messages)
+		let start = TranscriptWindow.start(hiding: model.hiddenParts, in: messages)
+		let mark = model.earlierMark.map { TranscriptWindow.start(hiding: $0, in: messages) }
 		let pending = model.pendingText
 		let steers = model.visibleSteers
 		let placeholder = messages.isEmpty && !model.submitting && !model.isRunning
 		let hasRows = !messages.isEmpty || placeholder
-		// Each part of an assistant message is a row of its own, and each block of
-		// its text. A row holding a whole message grows without bound over
-		// consecutive questions, and one tall row near the bottom makes the lazy
-		// stack's height estimate run far past the real content, which leaves the
-		// bottom-anchored viewport in empty space.
-		LazyVStack(alignment: .leading, spacing: 10) {
+		// The shown part of the transcript (TranscriptWindow) is laid out in full,
+		// not lazily: a lazy stack estimates the rows it hasn't laid out, and its
+		// estimates run far off. That left the bottom-anchored viewport in empty
+		// space, and moved what was on screen when the page above joined.
+		VStack(alignment: .leading, spacing: 10) {
 			if placeholder {
 				ContentUnavailableView("New session", systemImage: "sparkles", description: Text("The teacher will open by probing what you already know."))
 			}
-			ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+			ForEach(Array(messages.enumerated()).dropFirst(start.message), id: \.element.id) { index, message in
 				MessageRow(
 					model: model,
 					message: message,
+					firstPart: index == start.message ? start.part : 0,
+					markPart: mark.flatMap { $0.message == index && $0.hiddenParts > start.hiddenParts ? $0.part : nil },
 					isLast: index == messages.count - 1,
 					teachBoundary: teachDivider?.messageIndex == index ? .some(teachDivider?.partIndex) : nil,
-					hasPrevious: index > 0,
+					hasPrevious: index > start.message,
 					beforeAssistant: index + 1 < messages.count && messages[index + 1].role == .assistant
 				)
 			}
@@ -43,6 +49,19 @@ struct TranscriptList: View {
 			}
 			StatusRows(model: model, hasPrevious: hasRows || pending != nil || !steers.isEmpty)
 		}
+	}
+}
+
+/// Where the transcript started before the page above it was shown. The
+/// session scrolls it to the top so that row stays where it was: it reaches
+/// into the transcript's top padding, and takes no room in the stack.
+struct EarlierMark: View {
+	static let id = "transcript-earlier-mark"
+
+	var body: some View {
+		Color.clear.frame(height: TranscriptList.verticalPadding)
+			.padding(.bottom, -(TranscriptList.verticalPadding + 10))
+			.id(Self.id)
 	}
 }
 
@@ -59,6 +78,10 @@ private extension View {
 private struct MessageRow: View {
 	let model: SessionModel
 	let message: NativeViewMessage
+	/// The first part shown (the transcript window can start inside a message).
+	let firstPart: Int
+	/// The part the EarlierMark goes before, if it is in this message.
+	let markPart: Int?
 	let isLast: Bool
 	/// nil: no divider here; .some(nil): before the message; .some(i): at part i.
 	let teachBoundary: Int??
@@ -67,10 +90,13 @@ private struct MessageRow: View {
 
 	var body: some View {
 		if message.role == .user {
+			if markPart != nil { EarlierMark() }
 			userContent.messageGap(above: hasPrevious, below: beforeAssistant)
 		} else {
-			if case .some(.none) = teachBoundary { PhaseDivider(title: "Teaching") }
-			ForEach(Array(message.parts.enumerated()), id: \.offset) { index, part in
+			if markPart == 0 { EarlierMark() }
+			if firstPart == 0, case .some(.none) = teachBoundary { PhaseDivider(title: "Teaching") }
+			ForEach(Array(message.parts.enumerated()).dropFirst(firstPart), id: \.offset) { index, part in
+				if index > 0, markPart == index { EarlierMark() }
 				AssistantPart(model: model, message: message, part: part, index: index,
 							  isLastPart: isLast && index == message.parts.count - 1,
 							  teachBoundaryHere: teachBoundary == .some(.some(index)))
