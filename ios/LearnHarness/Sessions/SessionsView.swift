@@ -19,6 +19,10 @@ struct SessionsView: View {
 	@State private var renameText = ""
 	@State private var deleting: ChatListItem?
 	@State private var listener: UUID?
+	/// A refresh announced by server events, waiting out the debounce.
+	@State private var pendingRefresh: Task<Void, Never>?
+	/// Bumped by every load: only the latest one's answer is shown.
+	@State private var loadGeneration = 0
 
 	var body: some View {
 		NavigationSplitView {
@@ -68,7 +72,12 @@ struct SessionsView: View {
 			.onAppear(perform: subscribe)
 			.onAppear(perform: takeRequest)
 			.onChange(of: model.sessionRequest) { takeRequest() }
-			.onDisappear { if let listener { model.events.unsubscribe(listener) }; listener = nil }
+			.onDisappear {
+				if let listener { model.events.unsubscribe(listener) }
+				listener = nil
+				pendingRefresh?.cancel()
+				pendingRefresh = nil
+			}
 			// The target stays set while the alert dismisses; the button reads it.
 			.alert("Rename session", isPresented: $showRename, presenting: renaming) { chat in
 				TextField("Title", text: $renameText)
@@ -104,14 +113,29 @@ struct SessionsView: View {
 		listener = model.events.subscribe { signal in
 			switch signal {
 			case .reconnected:
+				pendingRefresh?.cancel()
+				pendingRefresh = nil
 				Task { await load() }
 			case .suspended:
 				break
 			case .event(let event):
 				if ["chats-changed", "turn-started", "turn-settled", "record-changed", "compaction-changed"].contains(event.type) {
-					Task { await load() }
+					scheduleLoad()
 				}
 			}
+		}
+	}
+
+	/// Events come in bursts (a turn starting and settling, several sessions
+	/// at once): one load 250 ms after the last of them (the web sidebar's
+	/// debounce).
+	private func scheduleLoad() {
+		pendingRefresh?.cancel()
+		pendingRefresh = Task {
+			try? await Task.sleep(for: .milliseconds(250))
+			guard !Task.isCancelled else { return }
+			pendingRefresh = nil
+			await load()
 		}
 	}
 
@@ -154,18 +178,28 @@ struct SessionsView: View {
 		}
 	}
 
+	/// Loads can overlap (events, pull to refresh, a rename) and answer out
+	/// of order: one superseded meanwhile is dropped, so an older list (a
+	/// session still "Working…") never replaces a newer one.
 	private func load() async {
 		guard let client = model.client, let store = model.store else { return }
+		loadGeneration += 1
+		let generation = loadGeneration
 		do {
 			let fresh = try await client.listChats()
+			guard generation == loadGeneration else { return }
 			chats = fresh
 			offline = false
 			try? await store.saveChatList(fresh)
 		} catch APIError.transport {
+			guard generation == loadGeneration else { return }
 			offline = true
-			chats = await store.loadChatList() ?? chats
+			let saved = await store.loadChatList()
+			guard generation == loadGeneration else { return }
+			chats = saved ?? chats
 		} catch is CancellationError {
 		} catch {
+			guard generation == loadGeneration else { return }
 			self.error = (error as? APIError)?.message ?? error.localizedDescription
 		}
 	}
