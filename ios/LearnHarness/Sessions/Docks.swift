@@ -6,6 +6,9 @@ import SwiftUI
 /// practice problem, or the composer (web parity: a dock replaces the composer).
 struct SessionDock: View {
 	let model: SessionModel
+	/// The question and problem docks' height limit (nil: not measured yet).
+	/// Each takes its content's height up to it; its scrolling part gives way.
+	var maxHeight: CGFloat?
 
 	var body: some View {
 		VStack(spacing: 0) {
@@ -19,8 +22,10 @@ struct SessionDock: View {
 					switch model.state?.dock {
 					case .question(let dock):
 						QuestionDockView(model: model, dock: dock).id(dock.key)
+							.modifier(DockHeight(maxHeight: maxHeight))
 					case .problem(let problem):
 						PracticeDockView(model: model, problem: problem).id(problem.toolCallId)
+							.modifier(DockHeight(maxHeight: maxHeight))
 					default:
 						ComposerView(model: model, nextReady: model.state?.dock == .betweenProblems)
 					}
@@ -28,6 +33,20 @@ struct SessionDock: View {
 			}
 			.background(.bar)
 		}
+	}
+}
+
+/// The safe-area inset offers a dock the whole height and a scroll view takes
+/// all it is offered, so a short question would sit above empty space. Sized
+/// at its ideal height instead, a dock fits its content, and a limit below
+/// that squeezes the dock's scroll view.
+private struct DockHeight: ViewModifier {
+	let maxHeight: CGFloat?
+
+	func body(content: Content) -> some View {
+		content
+			.frame(maxHeight: maxHeight ?? .infinity)
+			.fixedSize(horizontal: false, vertical: true)
 	}
 }
 
@@ -104,6 +123,8 @@ struct QuestionDockView: View {
 	@Environment(AppModel.self) private var app
 
 	@State private var expanded = true
+	/// The form's height: the scroll view grows no taller.
+	@State private var formHeight: CGFloat?
 
 	/// This question's form, kept in the session's drafts.
 	private var draft: QuestionFormDraft {
@@ -143,8 +164,10 @@ struct QuestionDockView: View {
 					header.padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 12)
 					ScrollView {
 						form.padding(.horizontal, 14)
+							.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { formHeight = $0 }
 					}
 					.scrollBounceBehavior(.basedOnSize)
+					.frame(maxHeight: formHeight)
 				}
 				.frame(maxHeight: expanded ? 460 : 120)
 				actions
@@ -341,6 +364,8 @@ struct PracticeDockView: View {
 	let problem: NativeProblemDock
 	@Environment(AppModel.self) private var app
 	@State private var showStatement = true
+	/// The statement's height: its scroll view grows no taller.
+	@State private var statementHeight: CGFloat?
 
 	/// The answer being written, kept in the session's drafts.
 	private var thinking: Binding<String> {
@@ -352,8 +377,9 @@ struct PracticeDockView: View {
 			DisclosureGroup(isExpanded: $showStatement) {
 				ScrollView {
 					MarkdownView(problem.statement ?? "").frame(maxWidth: .infinity, alignment: .leading)
+						.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { statementHeight = $0 }
 				}
-				.frame(maxHeight: 220)
+				.frame(maxHeight: min(220, statementHeight ?? 220))
 			} label: {
 				CardLabel(text: "Problem\(problem.mode.map { " · \($0)" } ?? "")", systemImage: "puzzlepiece")
 			}
