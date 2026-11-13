@@ -42,6 +42,8 @@ private struct SessionContent: View {
 	/// A native message to bring into view once the transcript loads (from the graph).
 	@Binding var focus: String?
 	@State private var showPlan = false
+	/// The transcript and dock's height, above the keyboard when it is up.
+	@State private var visibleHeight: CGFloat?
 	@State private var position = ScrollPosition()
 	@State private var atTop = false
 
@@ -72,7 +74,9 @@ private struct SessionContent: View {
 		.defaultScrollAnchor(.bottom)
 		.defaultScrollAnchor(.bottom, for: .sizeChanges)
 		.scrollDismissesKeyboard(.interactively)
-		.safeAreaInset(edge: .bottom, spacing: 0) { SessionDock(model: model) }
+		// A question or problem takes at most half, so the transcript stays in view.
+		.safeAreaInset(edge: .bottom, spacing: 0) { SessionDock(model: model, maxHeight: visibleHeight.map { $0 / 2 }) }
+		.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { visibleHeight = $0 }
 		.navigationTitle(model.state?.title ?? "")
 		.navigationBarTitleDisplayMode(.inline)
 		.toolbar {
