@@ -395,13 +395,23 @@ final class SessionModel {
 		catch { requestError = (error as? APIError)?.message ?? error.localizedDescription }
 	}
 
-	func stopJob(_ job: JobRecord) async {
-		try? await client.abortJob(job.id)
+	/// The failure to show on the job's card, or nil once stopped.
+	func stopJob(_ job: JobRecord) async -> String? {
+		var failure: String?
+		do { try await client.abortJob(job.id) }
+		catch { failure = "Couldn't stop: \((error as? APIError)?.message ?? error.localizedDescription)" }
 		await refreshJobs()
+		return failure
 	}
 
-	func setInverted(messageId: String, inverted: Bool) async {
-		try? await client.setArtifactInverted(chatId: chatId, messageId: messageId, inverted: inverted)
+	/// The failure to show on the artifact's card, or nil once saved.
+	func setInverted(messageId: String, inverted: Bool) async -> String? {
+		do {
+			try await client.setArtifactInverted(chatId: chatId, messageId: messageId, inverted: inverted)
+			return nil
+		} catch {
+			return "Couldn't save the colour setting: \((error as? APIError)?.message ?? error.localizedDescription)"
+		}
 	}
 
 	// MARK: Model and thinking level

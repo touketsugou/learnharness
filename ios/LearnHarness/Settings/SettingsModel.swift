@@ -123,10 +123,14 @@ final class SettingsModel {
 		return nil
 	}
 
-	func deleteKey(_ id: String) async {
-		try? await client.deleteKey(id)
+	/// The failure to show in the key sheet, or nil once deleted.
+	func deleteKey(_ id: String) async -> String? {
+		var failure: String?
+		do { try await client.deleteKey(id) }
+		catch { failure = "Couldn't delete the key: \((error as? APIError)?.message ?? error.localizedDescription)" }
 		await reloadKeys()
 		await reloadCatalog()
+		return failure
 	}
 
 	// MARK: Subscriptions
