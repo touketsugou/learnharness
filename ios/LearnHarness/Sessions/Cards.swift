@@ -32,6 +32,17 @@ struct CardLabel: View {
 	}
 }
 
+/// A card action that failed, under the card's content.
+struct CardError: View {
+	let text: String
+
+	var body: some View {
+		Label(text, systemImage: "exclamationmark.triangle.fill")
+			.font(.caption)
+			.foregroundStyle(.red)
+	}
+}
+
 private struct Badge: View {
 	let text: String
 	let color: Color
@@ -257,6 +268,7 @@ struct DispatchCard: View {
 	let model: SessionModel
 	let kind: String
 	let toolCallId: String?
+	@State private var stopError: String?
 
 	var body: some View {
 		let label = jobLabels[kind] ?? kind
@@ -278,13 +290,14 @@ struct DispatchCard: View {
 					if let job { TimelineView(.periodic(from: .now, by: 1)) { _ in Text(elapsed(job)).font(.caption).foregroundStyle(.secondary) } }
 					Spacer()
 					if let job {
-						Button("Stop", role: .destructive) { Task { await model.stopJob(job) } }
+						Button("Stop", role: .destructive) { Task { stopError = await model.stopJob(job) } }
 							.buttonStyle(.borderless).font(.caption)
 					}
 				}
 				if let activity = job?.activity, !activity.isEmpty {
 					Text(activity).font(.callout).foregroundStyle(.secondary).lineLimit(1)
 				}
+				if let stopError { CardError(text: stopError) }
 			}
 		}
 	}
@@ -369,12 +382,21 @@ private struct ResearchResultCard: View {
 }
 
 /// Colour inversion for demos and figures (persisted per artifact, like the web).
+/// Flips at once; a failed save flips it back and reports into `error`.
 private struct InvertToggle: View {
 	@Binding var inverted: Bool
-	let onChange: (Bool) -> Void
+	@Binding var error: String?
+	let save: (Bool) async -> String?
 
 	var body: some View {
-		Toggle(isOn: Binding(get: { inverted }, set: { inverted = $0; onChange($0) })) {
+		Toggle(isOn: Binding(get: { inverted }, set: { value in
+			inverted = value
+			Task {
+				error = await save(value)
+				// Unless it was flipped again meanwhile.
+				if error != nil, inverted == value { inverted = !value }
+			}
+		})) {
 			Image(systemName: "circle.lefthalf.filled")
 		}
 		.toggleStyle(.button)
@@ -388,6 +410,7 @@ private struct DemoArtifactCard: View {
 	let messageId: String
 	let result: JSONValue?
 	@State var inverted: Bool
+	@State private var invertError: String?
 
 	var body: some View {
 		let html = result?["html"]?.stringValue ?? ""
@@ -396,9 +419,10 @@ private struct DemoArtifactCard: View {
 				CardLabel(text: result?["title"]?.stringValue ?? "Interactive demo", systemImage: "play.rectangle")
 				Spacer()
 				if !html.isEmpty {
-					InvertToggle(inverted: $inverted) { value in Task { await model.setInverted(messageId: messageId, inverted: value) } }
+					InvertToggle(inverted: $inverted, error: $invertError) { await model.setInverted(messageId: messageId, inverted: $0) }
 				}
 			}
+			if let invertError { CardError(text: invertError) }
 			if html.isEmpty {
 				Text(result?["notes"]?.stringValue ?? "The demo could not be built.").font(.callout).foregroundStyle(.secondary)
 			} else {
@@ -415,6 +439,7 @@ private struct VisualArtifactCard: View {
 	let messageId: String
 	let result: JSONValue?
 	@State var inverted: Bool
+	@State private var invertError: String?
 	@State private var svg: String?
 
 	var body: some View {
@@ -425,9 +450,10 @@ private struct VisualArtifactCard: View {
 				CardLabel(text: "Figure", systemImage: "photo")
 				Spacer()
 				if !raw.isEmpty, snapshotId == nil {
-					InvertToggle(inverted: $inverted) { value in Task { await model.setInverted(messageId: messageId, inverted: value) } }
+					InvertToggle(inverted: $inverted, error: $invertError) { await model.setInverted(messageId: messageId, inverted: $0) }
 				}
 			}
+			if let invertError { CardError(text: invertError) }
 			if raw.isEmpty {
 				Text(result?["notes"]?.stringValue ?? "The figure could not be drawn.").font(.callout).foregroundStyle(.secondary)
 			} else if let svg {

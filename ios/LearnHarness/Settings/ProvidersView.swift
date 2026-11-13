@@ -145,8 +145,9 @@ struct KeyEditSheet: View {
 						Button("Delete Key", role: .destructive) {
 							Task {
 								busy = true
-								await model.deleteKey(target.id)
-								dismiss()
+								error = await model.deleteKey(target.id)
+								busy = false
+								if error == nil { dismiss() }
 							}
 						}
 						.disabled(busy)
