@@ -55,6 +55,8 @@ final class SessionModel {
 	/// A failure must never be retried automatically (web parity).
 	private var continuationBlocked = false
 	private var steerSeq = 0
+	/// How long an input waits out a running turn before giving up (tests shorten it).
+	var conflictWait: Duration = .seconds(30)
 
 	init(chatId: String, client: APIClient, store: OfflineStore, events: EventHub, drafts: SessionDrafts) {
 		self.chatId = chatId
@@ -269,7 +271,7 @@ final class SessionModel {
 		}
 		submitting = true
 		requestError = nil
-		let deadline = ContinuousClock.now + .seconds(30)
+		let deadline = ContinuousClock.now + conflictWait
 		while true {
 			do {
 				try await request(client, chatId)
