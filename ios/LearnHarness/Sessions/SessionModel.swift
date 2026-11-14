@@ -315,7 +315,12 @@ final class SessionModel {
 	/// The composer: a plain message, or a steer while a turn runs.
 	func sendText(_ raw: String) async {
 		let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-		guard !text.isEmpty, !offline else { return }
+		guard !text.isEmpty else { return }
+		// The composer has already let go of the text.
+		guard !offline else {
+			restore(.composer(text))
+			return
+		}
 		if isRunning {
 			await steer(text)
 			return
