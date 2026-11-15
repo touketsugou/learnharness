@@ -202,6 +202,7 @@ final class SessionModel {
 		switch dock {
 		case .question(let question): "question \(question.key)"
 		case .problem(let problem): "problem \(problem.toolCallId)"
+		case .pluginQuestion(let question): "plugin question \(question.toolCallId)"
 		default: nil
 		}
 	}
@@ -418,6 +419,20 @@ final class SessionModel {
 			requestError = (error as? APIError)?.message ?? error.localizedDescription
 		}
 	}
+
+	/// Dismiss the plugin question the web app would answer (dismiss-plugin-question).
+	func dismissPluginQuestion(_ dock: NativePluginQuestionDock) async {
+		do {
+			try await client.dismissPluginQuestion(chatId: chatId, occurrence: dock.occurrence, questionId: dock.questionId)
+			attach()
+		} catch {
+			requestError = (error as? APIError)?.message ?? error.localizedDescription
+		}
+	}
+
+	/// This session in the server's web app, where a plugin's question or
+	/// problem can be answered.
+	var webURL: URL { client.connection.baseURL.appending(path: "chat").appending(path: chatId) }
 
 	func nextProblem() async { await post(.next) }
 

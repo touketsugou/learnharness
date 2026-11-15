@@ -96,6 +96,7 @@ CI (`.github/workflows/ios.yml`) runs both suites on a macOS runner with Xcode 2
 
 - `GET /api/native/chats/:id/stream` is the session wire: `snapshot` → `patch`* → `settled` while a turn runs, or a single `settled` frame when idle. `NativeViewReducer` applies frames. `GET /api/events` signals idle-time changes (sessions, sources, extraction runs, subscriptions).
 - Answers go to `POST /api/native/chats/:id/answer` as the raw selection; the server shuffles and grades exactly like the web dock.
+- A plugin's question or practice problem is answered only in the web app, because its editor is plugin code. The app shows its text with **Open in Browser** (the session's `/chat/:id` page in Safari) and **Dismiss Question** (`POST /api/chats/:id/dismiss` with `dismiss-plugin-question`) or **Discard**.
 - Text arrives display-normalized: math is always `$...$` or `$$...$$`. Unanswered questions and unrevealed model solutions are never in the view.
 - Uploads (`POST /api/native/uploads`) return server paths that the composer quotes into messages, like desktop attachments.
 - The graph, notes import, and Settings use the same routes as the web app (`/api/graph/*`, `/api/settings/*`, `/api/keys`, `/api/custom-provider`, `/api/subscriptions`, `/api/claude-code`). Settings writes replace one whole section and keep fields the app does not edit. The subscription, Claude Code, and custom-endpoint controls send the server's own origin in `Origin`, as a same-origin browser would. A subscription sign-in page opens in an in-app Safari sheet after the device code is copied.

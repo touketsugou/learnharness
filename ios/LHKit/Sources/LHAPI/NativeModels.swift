@@ -191,11 +191,53 @@ public struct NativeProblemDock: Sendable, Hashable, Codable {
 	public var toolCallId: String
 	public var statement: String?
 	public var mode: String?
+	/// A plugin's problem: only the web app can submit it (its editor is plugin code).
+	public var plugin: NativePluginInfo?
+}
+
+public struct NativePluginInfo: Sendable, Hashable, Codable {
+	public var label: String
+}
+
+/// The exact saved position of a plugin question (dismiss-plugin-question's occurrence).
+public struct NativePluginQuestionOccurrence: Sendable, Hashable, Codable {
+	public var messageId: String
+	public var contentIndex: Int
+	public var toolCallId: String
+	public var toolName: String
+
+	public init(messageId: String, contentIndex: Int, toolCallId: String, toolName: String) {
+		self.messageId = messageId
+		self.contentIndex = contentIndex
+		self.toolCallId = toolCallId
+		self.toolName = toolName
+	}
+}
+
+/// A pending plugin question: answered in the web app, dismissable here.
+/// `available == false` is an unreadable one (no question text).
+public struct NativePluginQuestionDock: Sendable, Hashable, Codable {
+	public var toolCallId: String
+	public var occurrence: NativePluginQuestionOccurrence
+	public var questionId: String?
+	public var label: String?
+	public var question: String?
+	public var available: Bool
+
+	public init(toolCallId: String, occurrence: NativePluginQuestionOccurrence, questionId: String?, label: String?, question: String?, available: Bool) {
+		self.toolCallId = toolCallId
+		self.occurrence = occurrence
+		self.questionId = questionId
+		self.label = label
+		self.question = question
+		self.available = available
+	}
 }
 
 public enum NativeDock: Sendable, Hashable, Codable {
 	case question(NativeQuestionDock)
 	case problem(NativeProblemDock)
+	case pluginQuestion(NativePluginQuestionDock)
 	case betweenProblems
 	case unknown(String)
 
@@ -206,6 +248,7 @@ public enum NativeDock: Sendable, Hashable, Codable {
 		switch type {
 		case "question": self = .question(try NativeQuestionDock(from: decoder))
 		case "problem": self = .problem(try NativeProblemDock(from: decoder))
+		case "plugin-question": self = .pluginQuestion(try NativePluginQuestionDock(from: decoder))
 		case "between-problems": self = .betweenProblems
 		default: self = .unknown(type)
 		}
@@ -219,6 +262,9 @@ public enum NativeDock: Sendable, Hashable, Codable {
 			try dock.encode(to: encoder)
 		case .problem(let dock):
 			try container.encode("problem", forKey: .type)
+			try dock.encode(to: encoder)
+		case .pluginQuestion(let dock):
+			try container.encode("plugin-question", forKey: .type)
 			try dock.encode(to: encoder)
 		case .betweenProblems:
 			try container.encode("between-problems", forKey: .type)

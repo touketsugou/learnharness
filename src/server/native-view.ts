@@ -31,8 +31,10 @@ import {
 	measuredContextTokens,
 	needsContinuation,
 	parseAnswerRequest,
+	pendingPluginQuestionOf,
 	pendingQuestionOf,
 	phaseAt3,
+	pluginQuestionCallsOf,
 	projectView,
 	questionDataFromCall,
 	questionNeedsReveal,
@@ -47,6 +49,7 @@ import {
 	type LhViewPart,
 	type LiveTurnBuffer,
 	type NativeDock,
+	type NativePluginQuestionDock,
 	type NativeSessionState,
 	type NativeSessionView,
 	type NativeStreamFrame,
@@ -112,9 +115,40 @@ function without(value: unknown, keys: readonly string[]): unknown {
 	return copy;
 }
 
+/** Copy-on-write removal of `key` at any depth (plain objects and arrays). */
+function withoutDeep(value: unknown, key: string): unknown {
+	if (Array.isArray(value)) {
+		let copy: unknown[] | undefined;
+		value.forEach((item, index) => {
+			const next = withoutDeep(item, key);
+			if (next === item) return;
+			copy ??= [...value];
+			copy[index] = next;
+		});
+		return copy ?? value;
+	}
+	if (!value || typeof value !== "object") return value;
+	const source = value as Record<string, unknown>;
+	let copy: Record<string, unknown> | undefined;
+	for (const [name, item] of Object.entries(source)) {
+		if (name === key) {
+			copy ??= { ...source };
+			delete copy[name];
+			continue;
+		}
+		const next = withoutDeep(item, key);
+		if (next === item) continue;
+		copy ??= { ...source };
+		copy[name] = next;
+	}
+	return copy ?? value;
+}
+
 /** Unanswered question calls never expose their answer; posed problems never
  *  expose the model solution (the conclude part's `reveal` carries it once
- *  the problem is concluded). Never mutates record objects. */
+ *  the problem is concluded). A plugin's problem carries its input in several
+ *  places (the call, the snapshot, the tool result), so the solution goes at
+ *  every depth. Never mutates record objects. */
 function redactPart(part: LhViewPart): LhViewPart {
 	if (!part.type.startsWith("tool-")) return part;
 	const tool = part.type.slice("tool-".length);
@@ -124,6 +158,7 @@ function redactPart(part: LhViewPart): LhViewPart {
 	if (tool === "problem") {
 		return { ...part, input: without(part.input, ["modelSolution"]), rawInput: without(part.rawInput, ["modelSolution"]) };
 	}
+	if (part.pluginProblem !== undefined) return withoutDeep(part, "modelSolution") as LhViewPart;
 	return part;
 }
 
@@ -195,6 +230,39 @@ function posedAnyProblem(messages: readonly LhMessage[]): boolean {
 	return messages.some((m) => m.role === "assistant" && m.content.some((b) => b.type === "toolCall" && b.name === "problem"));
 }
 
+/** A pending plugin question, else an unreadable one — the web's order
+ *  (components/plugin-question-dismissal.ts capturePluginQuestionDismissal).
+ *  Only the web app can answer it (its editor is plugin code); the native
+ *  client shows its text and offers the dismissal, which needs this exact
+ *  occurrence and question id. */
+function pluginQuestionDock(native: readonly LhMessage[]): NativePluginQuestionDock | null {
+	const pending = pendingPluginQuestionOf(native);
+	if (pending) {
+		const { messageId, contentIndex, toolCallId, toolName } = pending.occurrence;
+		return {
+			type: "plugin-question",
+			toolCallId,
+			occurrence: { messageId, contentIndex, toolCallId, toolName },
+			questionId: pending.questionId,
+			label: pending.label,
+			question: displayTool(pending.input.question),
+			available: true,
+		};
+	}
+	const unreadable = pluginQuestionCallsOf(native).find((call) => call.status === "unreadable");
+	if (!unreadable) return null;
+	const { messageId, contentIndex, toolCallId, toolName } = unreadable.occurrence;
+	const annotation = unreadable.annotation;
+	const questionId = annotation.status === "unreadable" ? annotation.binding?.questionId ?? annotation.identity?.questionId : undefined;
+	return {
+		type: "plugin-question",
+		toolCallId,
+		occurrence: { messageId, contentIndex, toolCallId, toolName },
+		...(questionId !== undefined ? { questionId } : {}),
+		available: false,
+	};
+}
+
 function dockOf(
 	kind: "teach" | "practice",
 	native: readonly LhMessage[],
@@ -230,6 +298,8 @@ function dockOf(
 			return null; // an unrenderable question surfaces through malformedQuestions
 		}
 	}
+	const pluginQuestion = pluginQuestionDock(native);
+	if (pluginQuestion) return pluginQuestion;
 	const problem = activeProblemOf(native);
 	if (problem) {
 		const input = (problem.input ?? {}) as { statement?: unknown; mode?: unknown };
@@ -238,6 +308,8 @@ function dockOf(
 			toolCallId: problem.toolCallId,
 			...(typeof input.statement === "string" ? { statement: displayTool(input.statement) } : {}),
 			...(typeof input.mode === "string" ? { mode: input.mode } : {}),
+			// Only the web app can submit a plugin's problem (its editor is plugin code).
+			...(problem.pluginProblem ? { plugin: { label: problem.pluginProblem.label } } : {}),
 		};
 	}
 	if (kind === "practice" && !busy && posedAnyProblem(native)) return { type: "between-problems" };
