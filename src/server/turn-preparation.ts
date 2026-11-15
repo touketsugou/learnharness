@@ -83,6 +83,28 @@ export function claimPreparingTurn(chatId: string): TurnPreparation | null {
 				},
 			});
 		},
+		attach(sub) {
+			// subscribe()'s structured twin for the native view (iOS client):
+			// once handed off, the teacher's own attach owns replay and events.
+			// Preparation that finishes without a teacher has no events; its
+			// view settles a microtask later, after finish has released the
+			// turn, so the settled snapshot never reads as running.
+			let detached = false;
+			let detachReal: (() => void) | undefined;
+			const connect = () => {
+				waiting.delete(connect);
+				if (detached) return;
+				if (real) detachReal = real.attach(sub);
+				else queueMicrotask(() => { if (!detached) sub.done(); });
+			};
+			if (real || finished) connect();
+			else waiting.add(connect);
+			return () => {
+				detached = true;
+				waiting.delete(connect);
+				detachReal?.();
+			};
+		},
 		abort() {
 			if (finished) return;
 			if (real) real.abort();
