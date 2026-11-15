@@ -4,7 +4,8 @@ data/
 *.log
 .DS_Store
 *.tsbuildinfo
-# Local environment secrets; example templates may be committed.
+# Local environment secrets (the cloud server's compose LH_REMOTE_TOKEN too);
+# example templates may be committed.
 .env
 .env.*
 !.env.example
