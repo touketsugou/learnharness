@@ -137,6 +137,21 @@ struct QuestionDockView: View {
 	}
 
 	private var revealed: Bool { !dock.needsReveal || model.drafts.revealedQuestions.contains(dock.key) }
+
+	/// What picking changes in the form, not its text: each change is one
+	/// selection tick (a single-select switch clears one option and picks
+	/// another at once).
+	private struct Picks: Equatable {
+		var selected: Set<Int>
+		var otherSelected: Bool
+		var dontKnow: Bool
+		var confidenceIndex: Int
+	}
+
+	private var picks: Picks {
+		let draft = draft
+		return Picks(selected: draft.selected, otherSelected: draft.otherSelected, dontKnow: draft.dontKnow, confidenceIndex: draft.confidenceIndex)
+	}
 	private var isSelect: Bool { dock.mode != .text }
 	private var isQuiz: Bool { dock.kind == "quiz" }
 
@@ -175,6 +190,7 @@ struct QuestionDockView: View {
 				reveal
 			}
 		}
+		.sensoryFeedback(.selection, trigger: picks)
 	}
 
 	// The teach-phase check waits behind the reveal; thinking while reading

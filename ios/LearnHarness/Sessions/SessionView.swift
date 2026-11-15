@@ -74,6 +74,7 @@ private struct SessionContent: View {
 		.defaultScrollAnchor(.bottom)
 		.defaultScrollAnchor(.bottom, for: .sizeChanges)
 		.scrollDismissesKeyboard(.interactively)
+		.sensoryFeedback(.impact(weight: .light), trigger: model.turnCue)
 		// A question or problem takes at most half, so the transcript stays in view.
 		.safeAreaInset(edge: .bottom, spacing: 0) { SessionDock(model: model, maxHeight: visibleHeight.map { $0 / 2 }) }
 		.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { visibleHeight = $0 }

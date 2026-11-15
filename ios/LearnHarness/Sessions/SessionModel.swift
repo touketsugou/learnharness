@@ -48,6 +48,12 @@ final class SessionModel {
 	private(set) var catalog: ModelCatalog?
 	/// The stored settings a picker write returned, shown until the next view.
 	private var writtenSettings: ChatSettings?
+	/// Bumped when it becomes the learner's turn: a turn stopped running, or a
+	/// new question or problem opened. Only for changes seen live (the page
+	/// plays a haptic), not for the first view after opening or coming back.
+	private(set) var turnCue = 0
+	/// The next view is the first after opening or coming back: no cue.
+	private var cueQuiet = true
 
 	private var streamTask: Task<Void, Never>?
 	private var streaming = false
@@ -107,6 +113,7 @@ final class SessionModel {
 	// MARK: Lifecycle
 
 	func start() {
+		cueQuiet = true
 		if listener == nil {
 			listener = events.subscribe { [weak self] signal in self?.handle(signal) }
 		}
@@ -166,7 +173,13 @@ final class SessionModel {
 	}
 
 	private func apply(_ next: NativeSessionView) {
+		let previous = view
 		view = next
+		if cueQuiet {
+			cueQuiet = false
+		} else if let previous, Self.becameLearnersTurn(from: previous.state, to: next.state) {
+			turnCue += 1
+		}
 		openWindow()
 		writtenSettings = nil
 		offline = false
@@ -174,6 +187,22 @@ final class SessionModel {
 		drafts.forgetResolved(dock: next.state.dock)
 		if let pending = pendingText, next.messages.contains(where: { $0.role == .user && $0.parts.contains { $0.text == pending } }) {
 			pendingText = nil
+		}
+	}
+
+	/// A turn stopped running, or a question or problem opened that wasn't
+	/// there before (one cue when both happen at once).
+	static func becameLearnersTurn(from old: NativeSessionState, to new: NativeSessionState) -> Bool {
+		let stopped = old.status == .running && new.status != .running
+		let opened = dockIdentity(new.dock).map { $0 != dockIdentity(old.dock) } ?? false
+		return stopped || opened
+	}
+
+	private static func dockIdentity(_ dock: NativeDock?) -> String? {
+		switch dock {
+		case .question(let question): "question \(question.key)"
+		case .problem(let problem): "problem \(problem.toolCallId)"
+		default: nil
 		}
 	}
 
@@ -198,6 +227,7 @@ final class SessionModel {
 			streamTask = nil
 			streaming = false
 		case .reconnected:
+			cueQuiet = true
 			if !streaming { attach() }
 			Task { await refreshJobs() }
 			Task { await refreshCatalog() }
