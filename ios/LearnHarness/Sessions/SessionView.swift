@@ -58,6 +58,12 @@ private struct SessionContent: View {
 			}
 			.onChange(of: model.view?.messages.count ?? 0, initial: true) { scrollToFocus(proxy) }
 			.onChange(of: focus) { scrollToFocus(proxy) }
+			// A tutor-quote chip opens the quoted message, the graph's way.
+			.environment(\.openURL, OpenURLAction { url in
+				guard let messageId = UserText.messageId(from: url) else { return .systemAction }
+				focus = messageId
+				return .handled
+			})
 			.onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top < 1 } action: { _, top in
 				atTop = top
 			}

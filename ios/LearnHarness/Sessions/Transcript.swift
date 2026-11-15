@@ -117,22 +117,34 @@ private struct MessageRow: View {
 				}
 			}
 		} else {
-			UserRow(text: message.parts.filter { $0.type == "text" }.compactMap(\.text).joined(separator: "\n"))
+			UserRow(attributed: UserText.attributed(message.parts))
 		}
 	}
 }
 
 /// The learner's words: a full-width band with a rail and the "YOU" label.
 struct UserRow: View {
-	let text: String
+	let text: AttributedString
 	var label = "YOU"
+
+	/// Plain learner text (a pending send, a queued steer): file chips only.
+	init(text: String, label: String = "YOU") {
+		self.text = FilePathText.attributed(text)
+		self.label = label
+	}
+
+	/// A saved message's text, already composed (UserText.attributed).
+	init(attributed: AttributedString, label: String = "YOU") {
+		self.text = attributed
+		self.label = label
+	}
 
 	var body: some View {
 		HStack(spacing: 0) {
 			Rectangle().fill(.secondary.opacity(0.35)).frame(width: 4)
 			VStack(alignment: .leading, spacing: 4) {
 				Text(label).font(.caption2.weight(.semibold)).tracking(0.6).foregroundStyle(.secondary)
-				FilePathText(text: text)
+				Text(text).textSelection(.enabled)
 			}
 			.padding(.vertical, 8)
 			.padding(.horizontal, 12)
@@ -140,6 +152,62 @@ struct UserRow: View {
 		}
 		.background(Color(uiColor: .secondarySystemBackground))
 		.clipShape(RoundedRectangle(cornerRadius: 6))
+	}
+}
+
+/// A saved learner message's text parts as one attributed string. Each
+/// tutor quote (the part's `citations`: UTF-16 ranges the server found in
+/// the text) becomes a ❝ chip linking to the quoted tutor message, which
+/// SessionContent opens; the rest keeps its file chips. A range that is out
+/// of bounds, overlaps an earlier one or splits a character stays text.
+enum UserText {
+	static let citationScheme = "lh-citation-focus"
+
+	nonisolated static func attributed(_ parts: [NativeViewPart]) -> AttributedString {
+		var result = AttributedString()
+		for (index, part) in parts.filter({ $0.type == "text" }).enumerated() {
+			if index > 0 { result += AttributedString("\n") }
+			result += attributed(text: part.text ?? "", citations: part["citations"]?.arrayValue ?? [])
+		}
+		return result
+	}
+
+	nonisolated static func attributed(text: String, citations: [JSONValue]) -> AttributedString {
+		var result = AttributedString()
+		var cursor = text.startIndex
+		let ordered = citations.sorted { ($0["start"]?.intValue ?? 0) < ($1["start"]?.intValue ?? 0) }
+		for citation in ordered {
+			guard let start = citation["start"]?.intValue, let end = citation["end"]?.intValue,
+				let label = citation["label"]?.stringValue, let messageId = citation["messageId"]?.stringValue,
+				start >= 0, start < end, end <= text.utf16.count,
+				let lower = text.utf16.index(text.utf16.startIndex, offsetBy: start).samePosition(in: text),
+				let upper = text.utf16.index(text.utf16.startIndex, offsetBy: end).samePosition(in: text),
+				lower >= cursor
+			else { continue }
+			result += FilePathText.attributed(String(text[cursor..<lower]))
+			result += chip(label: label, messageId: messageId)
+			cursor = upper
+		}
+		result += FilePathText.attributed(String(text[cursor...]))
+		return result
+	}
+
+	nonisolated static func chip(label: String, messageId: String) -> AttributedString {
+		var chip = AttributedString("❝ " + label)
+		chip.font = .callout.weight(.medium)
+		chip.foregroundColor = .accentColor
+		var components = URLComponents()
+		components.scheme = citationScheme
+		components.path = messageId
+		chip.link = components.url
+		return chip
+	}
+
+	/// The quoted tutor message a chip's link opens, else nil.
+	nonisolated static func messageId(from url: URL) -> String? {
+		guard url.scheme == citationScheme,
+			let path = URLComponents(url: url, resolvingAgainstBaseURL: false)?.path, !path.isEmpty else { return nil }
+		return path
 	}
 }
 
