@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { claimPreparingTurn } from "../src/server/turn-preparation.ts";
 import { beginTurn, endTurn, isTurnRunning } from "../src/server/turn-liveness.ts";
 import { abortTurn, registerTurn, rememberTurnFailure, runningTurn, settledTurnResponse, unregisterTurn } from "../src/server/turn-runs.ts";
-import type { PiTurnHandle } from "../src/server/pi/ui-stream.ts";
+import type { PiTurnHandle, PiTurnSubscriber } from "../src/server/pi/ui-stream.ts";
 import { subscribe } from "../src/core/events.ts";
 
 const encode = (text: string) => new TextEncoder().encode(text);
@@ -18,6 +18,7 @@ function teacher() {
 	let aborted = 0;
 	let subscriptions = 0;
 	let cancellations = 0;
+	const attached = new Set<PiTurnSubscriber>();
 	const handle: PiTurnHandle = {
 		subscribe() {
 			subscriptions++;
@@ -27,10 +28,12 @@ function teacher() {
 				cancel() { cancellations++; views.delete(view); },
 			});
 		},
+		attach(sub) { attached.add(sub); return () => { attached.delete(sub); }; },
 		abort() { aborted++; },
 	};
 	return {
 		handle,
+		attached,
 		get aborted() { return aborted; },
 		get subscriptions() { return subscriptions; },
 		get cancellations() { return cancellations; },
@@ -232,5 +235,40 @@ describe("private turn preparation ownership", () => {
 		assert.equal(runningTurn(id), second);
 		unregisterTurn(id);
 		assert.equal(runningTurn(id), undefined);
+	});
+});
+
+describe("native attach through a preparing turn (iOS client)", () => {
+	it("waits for the handoff, then the teacher's own attach takes the view; detach reaches it", () => {
+		const id = chatId();
+		const prep = claimPreparingTurn(id)!;
+		const outer = runningTurn(id)!;
+		let done = 0;
+		const sub: PiTurnSubscriber = { push() {}, done() { done++; } };
+		const detach = outer.attach(sub);
+		const real = teacher();
+		assert.equal(real.attached.size, 0);
+		prep.handoff(real.handle);
+		assert.ok(real.attached.has(sub));
+		const late: PiTurnSubscriber = { push() {}, done() {} };
+		outer.attach(late);
+		assert.ok(real.attached.has(late), "a view after the handoff attaches at once");
+		detach();
+		assert.equal(real.attached.has(sub), false);
+		real.settle(); prep.finish();
+		assert.equal(done, 0, "the teacher, not preparation, settles handed-off views");
+	});
+
+	it("finishing without a teacher settles attached views only after the turn is released", async () => {
+		const id = chatId();
+		const prep = claimPreparingTurn(id)!;
+		const outer = runningTurn(id)!;
+		const runningAtDone: boolean[] = [];
+		outer.attach({ push() { throw new Error("preparation has no events"); }, done() { runningAtDone.push(isTurnRunning(id)); } });
+		outer.attach({ push() {}, done() { throw new Error("a detached view is never settled"); } })();
+		prep.finish();
+		assert.deepEqual(runningAtDone, [], "not inside finish, before endTurn");
+		await Promise.resolve();
+		assert.deepEqual(runningAtDone, [false]);
 	});
 });
