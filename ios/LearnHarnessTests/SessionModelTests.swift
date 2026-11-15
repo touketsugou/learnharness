@@ -341,3 +341,54 @@ struct SessionModelCardActionTests {
 		#expect(await h.model.setInverted(messageId: "m1", inverted: true) == nil)
 	}
 }
+
+@MainActor
+@Suite("Session model: turn cue")
+struct SessionModelTurnCueTests {
+	/// Follow the session again and wait until `view` shows.
+	private func follow(_ h: Harness, to view: NativeSessionView) async throws {
+		h.server.on("GET", Fixture.streamPath, .stream([.settled(view)]))
+		h.model.attach()
+		try await until { h.model.view == view }
+	}
+
+	@Test func aTurnThatStopsRunningCues() async throws {
+		let h = Harness()
+		try await h.open(Harness.running())
+		try await follow(h, to: Harness.idle())
+		#expect(h.model.turnCue == 1)
+	}
+
+	@Test func aNewQuestionCues() async throws {
+		let h = Harness()
+		try await h.open(Harness.idle())
+		try await follow(h, to: Fixture.view)
+		#expect(h.model.turnCue == 1)
+		// The same question again is no news.
+		var same = Fixture.view
+		same.state.revision += 1
+		try await follow(h, to: same)
+		#expect(h.model.turnCue == 1)
+	}
+
+	@Test func aTurnEndingOnAQuestionCuesOnce() async throws {
+		let h = Harness()
+		try await h.open(Harness.running())
+		try await follow(h, to: Fixture.view)
+		#expect(h.model.turnCue == 1)
+	}
+
+	@Test func theFirstViewAfterOpeningOrComingBackDoesNotCue() async throws {
+		let h = Harness()
+		try await h.open(Fixture.view)
+		#expect(h.model.turnCue == 0)
+		try await follow(h, to: Harness.running())
+		h.model.stop()
+		// Back from another tab: the turn ended meanwhile.
+		let later = Harness.idle()
+		h.server.on("GET", Fixture.streamPath, .stream([.settled(later)]))
+		h.model.start()
+		try await until { h.model.view == later }
+		#expect(h.model.turnCue == 0)
+	}
+}
