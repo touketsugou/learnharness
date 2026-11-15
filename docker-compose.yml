@@ -1,0 +1,22 @@
+# LearnHarness cloud server — see docs/cloud-server.md.
+#
+#   1. Put LH_REMOTE_TOKEN=<43+ random chars> in .env next to this file.
+#   2. docker compose up -d --build
+#   3. Point your HTTPS reverse proxy (it must preserve Host) at 127.0.0.1:3000.
+services:
+  learnharness:
+    build: .
+    image: learnharness-cloud:local
+    restart: unless-stopped
+    environment:
+      LH_REMOTE_TOKEN: ${LH_REMOTE_TOKEN:?Set LH_REMOTE_TOKEN in .env (see docs/cloud-server.md)}
+    # Loopback only: TLS terminates at the reverse proxy on this host.
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - lh-data:/data
+      - lh-claude:/home/node/.claude
+
+volumes:
+  lh-data:
+  lh-claude:

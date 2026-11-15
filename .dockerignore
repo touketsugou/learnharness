@@ -1,0 +1,20 @@
+# Never send data or secrets into the build context.
+data/
+.fresh-data/
+real-data-extraction/
+auth.json
+*credentials.json*
+.env*
+.memory/
+SCOPE.md
+
+# Rebuilt inside the image / not needed by the server.
+.git/
+node_modules/
+.next/
+dist/
+ios/
+.claude/
+*.log
+.DS_Store
+*.tsbuildinfo
