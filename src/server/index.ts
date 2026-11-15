@@ -70,5 +70,5 @@ export { customProviderGet, customProviderMutation } from "./custom-provider-htt
 export { cloudMode } from "./remote-access.ts";
 export { loginPageResponse, loginSubmitResponse, logoutResponse } from "./remote-login.ts";
 // Native (iOS) client surface: projected session view, stream, answers, uploads.
-export { buildNativeView, nativeAnswerResponse, nativeStreamResponse, nativeViewResponse } from "./native-view.ts";
+export { buildNativeView, nativeAnswerResponse, nativeImageResponse, nativeStreamResponse, nativeViewResponse } from "./native-view.ts";
 export { nativeUploadResponse } from "./native-uploads.ts";

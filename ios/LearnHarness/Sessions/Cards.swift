@@ -58,6 +58,8 @@ private struct Badge: View {
 struct AnsweredCard: View {
 	let answer: JSONValue
 	let input: JSONValue?
+	/// Loads the answer's submitted images (none shown without it).
+	var model: SessionModel?
 	@State private var whyOpen = false
 
 	private var kind: String { answer["kind"]?.stringValue ?? "" }
@@ -79,8 +81,10 @@ struct AnsweredCard: View {
 			}
 		} else {
 			VStack(alignment: .leading, spacing: 10) {
-				if let reading = answer["readingThinking"]?.stringValue, !reading.isEmpty {
-					ThinkingQuote(label: "YOUR THINKING", text: reading)
+				let readingText = answer["readingThinking"]?.stringValue ?? ""
+				let readingImages = SubmittedImages.refs(answer["images"]?["readingThinking"])
+				if !readingText.isEmpty || !readingImages.isEmpty {
+					ThinkingQuote(label: "YOUR THINKING", text: readingText, images: readingImages, model: model)
 				}
 				CardBox {
 					HStack(spacing: 8) {
@@ -102,8 +106,11 @@ struct AnsweredCard: View {
 					options
 					if let other = answer["other"]?.stringValue { answerLine("Your answer", other) }
 					if let text = answer["text"]?.stringValue { answerLine("Your answer", text) }
-					if let thinking = answer["thinking"]?.stringValue ?? answer["note"]?.stringValue, !thinking.isEmpty {
-						ThinkingQuote(label: "YOUR THINKING", text: thinking)
+					if let model { SubmittedImages(model: model, refs: SubmittedImages.refs(answer["images"]?["answer"])) }
+					let thinking = answer["thinking"]?.stringValue ?? answer["note"]?.stringValue ?? ""
+					let thinkingImages = SubmittedImages.refs(answer["images"]?["thinking"])
+					if !thinking.isEmpty || !thinkingImages.isEmpty {
+						ThinkingQuote(label: "YOUR THINKING", text: thinking, images: thinkingImages, model: model)
 					}
 					if kind == "quiz", let explanation = answer["explanation"]?.stringValue, !explanation.isEmpty {
 						if answer["questionType"]?.stringValue == "predict" {
@@ -158,13 +165,21 @@ struct AnsweredCard: View {
 struct ThinkingQuote: View {
 	let label: String
 	let text: String
+	/// Submitted image refs under the text (needs `model` to load them).
+	var images: [String] = []
+	var model: SessionModel?
 	@State private var open = true
 
 	var body: some View {
 		HStack(spacing: 0) {
 			Rectangle().fill(.secondary.opacity(0.3)).frame(width: 3)
 			DisclosureGroup(isExpanded: $open) {
-				Text(text).font(.callout).italic().foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+				VStack(alignment: .leading, spacing: 8) {
+					if !text.isEmpty {
+						Text(text).font(.callout).italic().foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+					}
+					if let model { SubmittedImages(model: model, refs: images) }
+				}
 			} label: {
 				Text(label).font(.caption2.weight(.semibold)).tracking(0.6).foregroundStyle(.secondary)
 			}
@@ -563,6 +578,8 @@ struct ConcludeCard: View {
 
 struct MarkerCard: View {
 	let part: NativeViewPart
+	/// Loads practice thinking's submitted images.
+	var model: SessionModel?
 	@State private var open = false
 
 	var body: some View {
@@ -595,7 +612,8 @@ struct MarkerCard: View {
 			.tint(.secondary)
 		case "data-practice-thinking":
 			let commit = part.data?["commit"]?.boolValue == true
-			ThinkingQuote(label: commit ? "YOUR ANSWER" : "YOUR THINKING", text: part.data?["text"]?.stringValue ?? "")
+			ThinkingQuote(label: commit ? "YOUR ANSWER" : "YOUR THINKING", text: part.data?["text"]?.stringValue ?? "",
+						  images: SubmittedImages.refs(part.data?["images"]), model: model)
 		case "data-practice-next":
 			HStack(spacing: 6) {
 				Image(systemName: "arrow.right")

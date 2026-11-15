@@ -46,6 +46,16 @@ export interface NativeCitation {
 	messageId: string;
 }
 
+/** A submitted image, wherever it sits in a part (a learner's image part, an
+ *  answer's `images`, practice thinking's `data.images`): the inline base64
+ *  is replaced by `ref`, the sha256 of that base64, and
+ *  GET /api/native/chats/:id/images/:ref serves the bytes. */
+export interface NativeImageRef {
+	type: "image";
+	mimeType: string;
+	ref: string;
+}
+
 /** One rendered part — the web renderer's part vocabulary (LhViewPart). */
 export interface NativeViewPart {
 	type: string;

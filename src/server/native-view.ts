@@ -9,6 +9,7 @@
  * Contract and wire: src/core/contracts/native.ts.
  */
 
+import { createHash } from "node:crypto";
 import type { ChatRecord } from "../core/contracts/chat.ts";
 import {
 	CONFIDENCE_STOPS,
@@ -235,11 +236,103 @@ function withCitations(part: LhViewPart): LhViewPart {
 	return citations.length ? { ...part, citations } : part;
 }
 
+// ─── submitted images (owner 2026-11-16) ────────────────────────────────────
+// A plugin's submission (a drawing) carries inline base64 images in learner
+// messages, answers and practice thinking. The native view sends each as a
+// reference instead — {type: "image", mimeType, ref}, ref the sha256 of its
+// base64 text — and GET /api/native/chats/:id/images/:ref serves the bytes,
+// so a session's views stay small and the app loads only what it shows.
+
+type InlineImage = { type: "image"; data: string; mimeType: string };
+
+const SERVED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+
+// Records are re-read from disk, but string keys compare by value: the same
+// image hashes once. Bounded by the cached text's total length, not a count,
+// since one image's text can be megabytes.
+const IMAGE_REF_BUDGET = 32 * 1024 * 1024;
+const imageRefs = new Map<string, string>();
+let imageRefBytes = 0;
+
+export function imageRef(data: string): string {
+	const cached = imageRefs.get(data);
+	if (cached !== undefined) return cached;
+	const ref = createHash("sha256").update(data).digest("hex");
+	if (data.length <= IMAGE_REF_BUDGET) {
+		while (imageRefBytes + data.length > IMAGE_REF_BUDGET) {
+			const oldest = imageRefs.keys().next().value!;
+			imageRefs.delete(oldest);
+			imageRefBytes -= oldest.length;
+		}
+		imageRefs.set(data, ref);
+		imageRefBytes += data.length;
+	}
+	return ref;
+}
+
+function isInlineImage(value: unknown): value is InlineImage {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+	const fields = value as Fields;
+	return fields.type === "image" && typeof fields.data === "string" && typeof fields.mimeType === "string";
+}
+
+/** Every inline image at any depth becomes a reference (copy-on-write). */
+function withImageRefs(value: unknown): unknown {
+	if (isInlineImage(value)) {
+		const { data, ...rest } = value;
+		return { ...rest, ref: imageRef(data) };
+	}
+	if (Array.isArray(value)) {
+		let copy: unknown[] | undefined;
+		value.forEach((item, index) => {
+			const next = withImageRefs(item);
+			if (next === item) return;
+			copy ??= [...value];
+			copy[index] = next;
+		});
+		return copy ?? value;
+	}
+	if (!value || typeof value !== "object") return value;
+	const source = value as Fields;
+	let copy: Fields | undefined;
+	for (const [name, item] of Object.entries(source)) {
+		const next = withImageRefs(item);
+		if (next === item) continue;
+		copy ??= { ...source };
+		copy[name] = next;
+	}
+	return copy ?? value;
+}
+
+function findInlineImage(value: unknown, ref: string): InlineImage | undefined {
+	if (isInlineImage(value)) return imageRef(value.data) === ref ? value : undefined;
+	if (!value || typeof value !== "object") return undefined;
+	for (const item of Array.isArray(value) ? value : Object.values(value as Fields)) {
+		const found = findInlineImage(item, ref);
+		if (found) return found;
+	}
+	return undefined;
+}
+
+/** GET /api/native/chats/:id/images/:ref — one submitted image's bytes,
+ *  found in this session's record only. Immutable: the ref is its hash. */
+export function nativeImageResponse(chatId: string, ref: string): Response {
+	const notFound = () => Response.json({ error: "Not found" }, { status: 404, headers: { "Cache-Control": "no-store" } });
+	if (!/^[0-9a-f]{64}$/.test(ref)) return notFound();
+	const chat = getChat(chatId);
+	if (!chat) return notFound();
+	const image = findInlineImage(chat.messages, ref);
+	if (!image || !SERVED_IMAGE_TYPES.has(image.mimeType)) return notFound();
+	return new Response(new Uint8Array(Buffer.from(image.data, "base64")), {
+		headers: { "Content-Type": image.mimeType, "Cache-Control": "private, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" },
+	});
+}
+
 function nativeMessages(view: readonly LhViewMessage[]): NativeViewMessage[] {
 	return view.map((m) => {
 		const parts = m.parts.map((part) => {
 			const shown = displayPart(redactPart(part));
-			return m.role === "user" ? withCitations(shown) : shown;
+			return withImageRefs(m.role === "user" ? withCitations(shown) : shown) as LhViewPart;
 		});
 		const message: NativeViewMessage = { id: m.id, role: m.role, parts };
 		if (m.metadata !== undefined) message.metadata = m.metadata;

@@ -2,7 +2,8 @@
  * Native-contract fixtures (iOS client, 2026-11-07): the server-projected
  * views and stream frames the Swift decoder tests read, generated from the
  * golden data dir (real records) plus synthetic sessions: a pending quiz,
- * a plugin's question, a plugin's practice problem and tutor quotes.
+ * a plugin's question, a plugin's practice problem, tutor quotes and
+ * submitted images.
  *
  *   npx tsx scripts/export-native-fixtures.ts     # rewrite tests/fixtures/native/
  *
@@ -150,6 +151,27 @@ export async function generateNativeFixtures(): Promise<Record<string, unknown>>
 		],
 	} as never as Parameters<typeof buildNativeView>[0];
 	out["citations.view.json"] = buildNativeView(citations);
+
+	// Submitted images (a plugin's drawing) in a learner message, an answer
+	// and practice thinking: the view carries references, never base64.
+	const { newThinkingMessage } = await import("../src/core/native-messages.ts");
+	const png = { type: "image", mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" };
+	const imageAnswer = answerInputFromRequest(pending.messages, "call-1", { values: ["Mercury"], confidence: 70 });
+	const images = {
+		...pending,
+		id: "chat_native_images",
+		title: "Fixture: submitted images",
+		messages: [
+			{ id: "msg_user_drawing", role: "user", content: [{ type: "text", text: "here is my sketch" }, png], timestamp: 1_790_000_000_000 },
+			...pending.messages.slice(1),
+			{
+				...newAnswerResult("call-1", "quiz", { ...imageAnswer.answer, answeredAt: "2026-11-07T00:00:01.000Z", images: { answer: [png] } } as never),
+				id: "msg_result_images", timestamp: 1_790_000_001_000,
+			},
+			{ ...newThinkingMessage("call-x", "my working", [png] as never), id: "msg_thinking_images", timestamp: 1_790_000_002_000 },
+		],
+	} as never as Parameters<typeof buildNativeView>[0];
+	out["submitted-images.view.json"] = buildNativeView(images);
 	return JSON.parse(JSON.stringify(out)) as Record<string, unknown>;
 }
 

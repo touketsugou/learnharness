@@ -510,4 +510,15 @@ final class SessionModel {
 		if let data = try? JSONEncoder().encode(image) { try? await store.saveImage(chatId: chatId, snapshotId: snapshotId, data: data) }
 		return image
 	}
+
+	/// A submitted image's bytes: the session's image cache, else the server
+	/// (immutable — the ref is the image's hash; the route serves image types
+	/// only). Nil when it can't be loaded.
+	func submittedImage(_ ref: String) async -> Data? {
+		let key = "submitted-\(ref)"
+		if let cached = await store.loadImage(chatId: chatId, snapshotId: key) { return cached }
+		guard let data = try? await client.submittedImage(chatId: chatId, ref: ref), !data.isEmpty else { return nil }
+		try? await store.saveImage(chatId: chatId, snapshotId: key, data: data)
+		return data
+	}
 }

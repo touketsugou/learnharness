@@ -113,11 +113,11 @@ private struct MessageRow: View {
 		} else if !types.isEmpty, types.allSatisfy({ $0.hasPrefix("data-") }) {
 			VStack(alignment: .leading, spacing: 8) {
 				ForEach(Array(message.parts.enumerated()), id: \.offset) { _, part in
-					MarkerCard(part: part)
+					MarkerCard(part: part, model: model)
 				}
 			}
 		} else {
-			UserRow(attributed: UserText.attributed(message.parts))
+			UserRow(attributed: UserText.attributed(message.parts), images: SubmittedImages.refs(.array(message.parts.map { .object($0.fields) })), model: model)
 		}
 	}
 }
@@ -126,6 +126,9 @@ private struct MessageRow: View {
 struct UserRow: View {
 	let text: AttributedString
 	var label = "YOU"
+	/// Submitted image refs shown under the text (needs `model` to load them).
+	var images: [String] = []
+	var model: SessionModel?
 
 	/// Plain learner text (a pending send, a queued steer): file chips only.
 	init(text: String, label: String = "YOU") {
@@ -133,10 +136,13 @@ struct UserRow: View {
 		self.label = label
 	}
 
-	/// A saved message's text, already composed (UserText.attributed).
-	init(attributed: AttributedString, label: String = "YOU") {
+	/// A saved message's text, already composed (UserText.attributed), and
+	/// its submitted images.
+	init(attributed: AttributedString, label: String = "YOU", images: [String] = [], model: SessionModel? = nil) {
 		self.text = attributed
 		self.label = label
+		self.images = images
+		self.model = model
 	}
 
 	var body: some View {
@@ -144,7 +150,9 @@ struct UserRow: View {
 			Rectangle().fill(.secondary.opacity(0.35)).frame(width: 4)
 			VStack(alignment: .leading, spacing: 4) {
 				Text(label).font(.caption2.weight(.semibold)).tracking(0.6).foregroundStyle(.secondary)
-				Text(text).textSelection(.enabled)
+				// An image-only message has no text line.
+				if !text.characters.isEmpty { Text(text).textSelection(.enabled) }
+				if let model { SubmittedImages(model: model, refs: images) }
 			}
 			.padding(.vertical, 8)
 			.padding(.horizontal, 12)
@@ -381,7 +389,7 @@ private struct AssistantPart: View {
 				Task { await model.retryQuestion(malformed) }
 			}
 		} else if part.state == "output-available", let output = part.output {
-			AnsweredCard(answer: output, input: part.input)
+			AnsweredCard(answer: output, input: part.input, model: model)
 		}
 	}
 

@@ -50,6 +50,11 @@ extension APIClient {
 		try await get("/api/chats/\(encodePath(chatId))/images/\(encodePath(snapshotId))", as: ImageSnapshot.self)
 	}
 
+	/// A submitted image's bytes (a plugin's drawing), by the ref the view carries.
+	public func submittedImage(chatId: String, ref: String) async throws -> Data {
+		try await send(makeRequest("GET", "/api/native/chats/\(encodePath(chatId))/images/\(encodePath(ref))")).0
+	}
+
 	// MARK: Native view
 
 	public func nativeView(_ chatId: String) async throws -> NativeSessionView {
