@@ -1,0 +1,81 @@
+{
+	"version": 1,
+	"chatId": "chat_native_citations",
+	"title": "Fixture: tutor quotes",
+	"kind": "teach",
+	"createdAt": "2026-11-16T00:00:00.000Z",
+	"updatedAt": "2026-11-16T00:00:00.000Z",
+	"revision": 0,
+	"status": "idle",
+	"phase": "probe",
+	"activity": null,
+	"dock": null,
+	"malformedQuestions": [],
+	"plan": null,
+	"needsContinuation": false,
+	"failure": null,
+	"usage": {
+		"contextTokens": null,
+		"cost": 0,
+		"unpriced": 0
+	},
+	"settings": null,
+	"coverage": null,
+	"messages": [
+		{
+			"id": "msg_user_start",
+			"role": "user",
+			"parts": [
+				{
+					"type": "text",
+					"text": "teach me normalization",
+					"state": "done"
+				}
+			]
+		},
+		{
+			"id": "msg_tutor_quoted",
+			"role": "assistant",
+			"parts": [
+				{
+					"type": "step-start",
+					"sourceMessageId": "msg_tutor_quoted"
+				},
+				{
+					"type": "text",
+					"id": "msg_tutor_quoted-t0",
+					"text": "为什么要先归一化？Because 🎯 scale matters.",
+					"state": "done"
+				}
+			]
+		},
+		{
+			"id": "msg_user_quoting",
+			"role": "user",
+			"parts": [
+				{
+					"type": "text",
+					"text": "这里没懂：[Tutor quote](lh-citation://v1/chat_native_citations/msg_tutor_quoted?text=%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E5%85%88%E5%BD%92%E4%B8%80%E5%8C%96&start=0&end=8&prefix=&suffix=) 还有 😀 [Tutor quote](lh-citation://v1/chat_native_citations/msg_tutor_quoted?text=%F0%9F%8E%AF%20scale%20matters&start=0&end=16&prefix=&suffix=&comment=%E6%88%91%E4%B8%8D%E6%87%82%E8%BF%99%E9%87%8C%20%F0%9F%A4%94)",
+					"state": "done",
+					"citations": [
+						{
+							"start": 5,
+							"end": 183,
+							"label": "为什么要先归一化",
+							"quote": "为什么要先归一化",
+							"messageId": "msg_tutor_quoted"
+						},
+						{
+							"start": 190,
+							"end": 396,
+							"label": "我不懂这里 🤔",
+							"quote": "🎯 scale matters",
+							"comment": "我不懂这里 🤔",
+							"messageId": "msg_tutor_quoted"
+						}
+					]
+				}
+			]
+		}
+	]
+}

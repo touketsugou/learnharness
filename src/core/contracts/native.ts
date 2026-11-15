@@ -33,6 +33,19 @@ import type { QuizOption } from "../question-core.ts";
 
 export const NATIVE_VIEW_VERSION = 1;
 
+/** A tutor quote inside a learner's text part (the part's `citations`): the
+ *  UTF-16 range of its `[Tutor quote](lh-citation://…)` link in `text`, the
+ *  chip label (comment, else quote; 64 characters) and the quoted tutor
+ *  message. The text itself stays as saved. */
+export interface NativeCitation {
+	start: number;
+	end: number;
+	label: string;
+	quote: string;
+	comment?: string;
+	messageId: string;
+}
+
 /** One rendered part — the web renderer's part vocabulary (LhViewPart). */
 export interface NativeViewPart {
 	type: string;

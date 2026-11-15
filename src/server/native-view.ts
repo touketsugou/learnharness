@@ -19,6 +19,8 @@ import {
 	activeProblemOf,
 	answerInputFromRequest,
 	applyLiveEvent,
+	citationLabel,
+	collectCitations,
 	derivePlanStatuses,
 	emptyLiveTurnBuffer,
 	endsInFailedTurn,
@@ -48,6 +50,7 @@ import {
 	type LhViewMessage,
 	type LhViewPart,
 	type LiveTurnBuffer,
+	type NativeCitation,
 	type NativeDock,
 	type NativePluginQuestionDock,
 	type NativeSessionState,
@@ -216,9 +219,29 @@ function displayPart(part: LhViewPart): LhViewPart {
 	return part;
 }
 
+/** A learner's tutor quotes (src/core/citations.ts, owner 2026-11-16): UTF-16
+ *  ranges into the part's displayed text, so the client draws each as a chip
+ *  that opens the quoted tutor message. The text itself stays as saved. */
+function withCitations(part: LhViewPart): LhViewPart {
+	if (part.type !== "text" || typeof part.text !== "string" || !part.text.includes("lh-citation:")) return part;
+	const citations: NativeCitation[] = collectCitations(part.text).map(({ citation, start, end }) => ({
+		start,
+		end,
+		label: citationLabel(citation),
+		quote: citation.text,
+		...(citation.comment ? { comment: citation.comment } : {}),
+		messageId: citation.messageId,
+	}));
+	return citations.length ? { ...part, citations } : part;
+}
+
 function nativeMessages(view: readonly LhViewMessage[]): NativeViewMessage[] {
 	return view.map((m) => {
-		const message: NativeViewMessage = { id: m.id, role: m.role, parts: m.parts.map((part) => displayPart(redactPart(part))) };
+		const parts = m.parts.map((part) => {
+			const shown = displayPart(redactPart(part));
+			return m.role === "user" ? withCitations(shown) : shown;
+		});
+		const message: NativeViewMessage = { id: m.id, role: m.role, parts };
 		if (m.metadata !== undefined) message.metadata = m.metadata;
 		return message;
 	});

@@ -2,7 +2,7 @@
  * Native-contract fixtures (iOS client, 2026-11-07): the server-projected
  * views and stream frames the Swift decoder tests read, generated from the
  * golden data dir (real records) plus synthetic sessions: a pending quiz,
- * a plugin's question and a plugin's practice problem.
+ * a plugin's question, a plugin's practice problem and tutor quotes.
  *
  *   npx tsx scripts/export-native-fixtures.ts     # rewrite tests/fixtures/native/
  *
@@ -131,6 +131,25 @@ export async function generateNativeFixtures(): Promise<Record<string, unknown>>
 		],
 	} as never as Parameters<typeof buildNativeView>[0];
 	out["plugin-problem.view.json"] = buildNativeView(pluginProblem);
+
+	// Tutor quotes in a learner message (CJK and emoji: UTF-16 ranges).
+	const { serializeCitation } = await import("../src/core/citations.ts");
+	const quote = (text: string, comment?: string) => serializeCitation({
+		version: 1, chatId: "chat_native_citations", messageId: "msg_tutor_quoted", text,
+		start: 0, end: text.length, prefix: "", suffix: "", ...(comment ? { comment } : {}),
+	});
+	const citations = {
+		id: "chat_native_citations",
+		title: "Fixture: tutor quotes",
+		createdAt: "2026-11-16T00:00:00.000Z",
+		updatedAt: "2026-11-16T00:00:00.000Z",
+		messages: [
+			{ id: "msg_user_start", role: "user", content: "teach me normalization", timestamp: 1_790_000_000_000 },
+			assistant("msg_tutor_quoted", [{ type: "text", text: "为什么要先归一化？Because 🎯 scale matters." }]),
+			{ id: "msg_user_quoting", role: "user", content: `这里没懂：${quote("为什么要先归一化")} 还有 😀 ${quote("🎯 scale matters", "我不懂这里 🤔")}`, timestamp: 1_790_000_002_000 },
+		],
+	} as never as Parameters<typeof buildNativeView>[0];
+	out["citations.view.json"] = buildNativeView(citations);
 	return JSON.parse(JSON.stringify(out)) as Record<string, unknown>;
 }
 
