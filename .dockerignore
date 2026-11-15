@@ -13,6 +13,14 @@ SCOPE.md
 node_modules/
 .next/
 dist/
+# Plugin builds (npm run plugins:setup / build): an image builds them from
+# source, and a copied core-plugins/ cannot be renamed on overlayfs (EXDEV).
+core-plugins/
+.core-plugins-*/
+public/plugin-authoring/
+plugins/*/node_modules/
+plugins/*/dist/
+plugins/*/.sdk/
 ios/
 .claude/
 *.log
