@@ -161,8 +161,8 @@ export const THEMES_DIR = path.join(/* turbopackIgnore: true */ DATA_ROOT, "them
  * has never saved one (src/server/remote-boot.ts).
  */
 export const UPLOADS_DIR = process.env.LH_UPLOADS_DIR
-	? path.resolve(process.env.LH_UPLOADS_DIR)
-	: path.join(DATA_ROOT, "uploads");
+	? path.resolve(/* turbopackIgnore: true */ process.env.LH_UPLOADS_DIR)
+	: path.join(/* turbopackIgnore: true */ DATA_ROOT, "uploads");
 
 export const AUTH_FILE = process.env.LH_AUTH_FILE
 	? path.resolve(/* turbopackIgnore: true */ process.env.LH_AUTH_FILE)
