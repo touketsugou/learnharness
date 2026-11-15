@@ -1,0 +1,215 @@
+{
+	"version": 1,
+	"chatId": "chat_native_images",
+	"title": "Fixture: submitted images",
+	"kind": "teach",
+	"createdAt": "2026-11-07T00:00:00.000Z",
+	"updatedAt": "2026-11-07T00:00:00.000Z",
+	"revision": 0,
+	"status": "idle",
+	"phase": "probe",
+	"activity": null,
+	"dock": null,
+	"malformedQuestions": [],
+	"plan": null,
+	"needsContinuation": false,
+	"failure": null,
+	"usage": {
+		"contextTokens": null,
+		"cost": 0,
+		"unpriced": 0
+	},
+	"settings": null,
+	"coverage": null,
+	"messages": [
+		{
+			"id": "msg_user_drawing",
+			"role": "user",
+			"parts": [
+				{
+					"type": "text",
+					"text": "here is my sketch",
+					"state": "done"
+				},
+				{
+					"type": "image",
+					"mimeType": "image/png",
+					"ref": "abbd4841ba31f4d7195c0bae44b30cbebbb9c7cc91f3dad94f68614c6ce4bee8"
+				}
+			]
+		},
+		{
+			"id": "msg_asst_1",
+			"role": "assistant",
+			"parts": [
+				{
+					"type": "step-start",
+					"sourceMessageId": "msg_asst_1"
+				},
+				{
+					"type": "reasoning",
+					"id": "msg_asst_1-r0",
+					"text": "Probe first.",
+					"state": "done"
+				},
+				{
+					"type": "text",
+					"id": "msg_asst_1-t0",
+					"text": "Let's check one thing.",
+					"state": "done"
+				},
+				{
+					"type": "tool-quiz",
+					"toolCallId": "call-1",
+					"input": {
+						"question": "Which planet is closest to the sun?",
+						"options": [
+							{
+								"label": "Venus"
+							},
+							{
+								"label": "Mercury"
+							},
+							{
+								"label": "Mars"
+							}
+						],
+						"correctAnswer": "Mercury",
+						"explanation": "Mercury is the innermost planet.",
+						"type": "check"
+					},
+					"state": "output-available",
+					"sourceMessageId": "msg_asst_1",
+					"sourceContentIndex": 2,
+					"result": {
+						"content": [
+							{
+								"type": "text",
+								"text": "{\"kind\":\"quiz\",\"answers\":[{\"index\":3,\"label\":\"Mercury\"}],\"correct\":true,\"confidence\":70}"
+							},
+							{
+								"type": "text",
+								"text": "Answer images:"
+							},
+							{
+								"type": "image",
+								"mimeType": "image/png",
+								"ref": "abbd4841ba31f4d7195c0bae44b30cbebbb9c7cc91f3dad94f68614c6ce4bee8"
+							}
+						],
+						"details": {
+							"kind": "quiz",
+							"tool": "quiz",
+							"questionType": "check",
+							"questionText": "Which planet is closest to the sun?",
+							"options": [
+								{
+									"index": 1,
+									"label": "Mars"
+								},
+								{
+									"index": 2,
+									"label": "Venus"
+								},
+								{
+									"index": 3,
+									"label": "Mercury"
+								}
+							],
+							"dontKnow": false,
+							"answers": [
+								{
+									"label": "Mercury",
+									"value": "Mercury",
+									"index": 3
+								}
+							],
+							"answeredAt": "2026-11-07T00:00:01.000Z",
+							"correctIndices": [
+								3
+							],
+							"explanation": "Mercury is the innermost planet.",
+							"correct": true,
+							"confidence": 70,
+							"images": {
+								"answer": [
+									{
+										"type": "image",
+										"mimeType": "image/png",
+										"ref": "abbd4841ba31f4d7195c0bae44b30cbebbb9c7cc91f3dad94f68614c6ce4bee8"
+									}
+								]
+							}
+						},
+						"isError": false
+					},
+					"output": {
+						"kind": "quiz",
+						"tool": "quiz",
+						"questionType": "check",
+						"questionText": "Which planet is closest to the sun?",
+						"options": [
+							{
+								"index": 1,
+								"label": "Mars"
+							},
+							{
+								"index": 2,
+								"label": "Venus"
+							},
+							{
+								"index": 3,
+								"label": "Mercury"
+							}
+						],
+						"dontKnow": false,
+						"answers": [
+							{
+								"label": "Mercury",
+								"value": "Mercury",
+								"index": 3
+							}
+						],
+						"answeredAt": "2026-11-07T00:00:01.000Z",
+						"correctIndices": [
+							3
+						],
+						"explanation": "Mercury is the innermost planet.",
+						"correct": true,
+						"confidence": 70,
+						"images": {
+							"answer": [
+								{
+									"type": "image",
+									"mimeType": "image/png",
+									"ref": "abbd4841ba31f4d7195c0bae44b30cbebbb9c7cc91f3dad94f68614c6ce4bee8"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "msg_thinking_images",
+			"role": "user",
+			"parts": [
+				{
+					"type": "data-practice-thinking",
+					"id": "pt_msg_thinking_images",
+					"data": {
+						"problemCallId": "call-x",
+						"text": "my working",
+						"images": [
+							{
+								"type": "image",
+								"mimeType": "image/png",
+								"ref": "abbd4841ba31f4d7195c0bae44b30cbebbb9c7cc91f3dad94f68614c6ce4bee8"
+							}
+						]
+					}
+				}
+			]
+		}
+	]
+}

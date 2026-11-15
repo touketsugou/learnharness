@@ -447,3 +447,37 @@ struct SessionModelPluginQuestionTests {
 		#expect(h.model.webURL == h.server.baseURL.appending(path: "chat").appending(path: Fixture.chatId))
 	}
 }
+
+@MainActor
+@Suite("Session model: submitted images")
+struct SessionModelSubmittedImageTests {
+	private static let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+	private static let ref = "abbd4841ba31f4d7195c0bae44b30cbebbb9c7cc91f3dad94f68614c6ce4bee8"
+	private static let imagePath = "/api/native/chats/\(Fixture.chatId)/images/\(ref)"
+
+	@Test func everyPlaceTheViewCarriesAnImageGivesItsRef() throws {
+		let view = try JSONDecoder().decode(NativeSessionView.self, from: Fixture.data("submitted-images.view.json"))
+		let drawing = try #require(view.messages.first { $0.id == "msg_user_drawing" })
+		#expect(SubmittedImages.refs(.array(drawing.parts.map { .object($0.fields) })) == [Self.ref])
+		let answered = try #require(view.messages.flatMap(\.parts).first { $0.type == "tool-quiz" })
+		#expect(SubmittedImages.refs(answered.output?["images"]?["answer"]) == [Self.ref])
+		let thinking = try #require(view.messages.flatMap(\.parts).first { $0.type == "data-practice-thinking" })
+		#expect(SubmittedImages.refs(thinking.data?["images"]) == [Self.ref])
+	}
+
+	@Test func anImageLoadsOnceThenFromTheSessionsCache() async throws {
+		let h = Harness()
+		h.server.on("GET", Self.imagePath, FakeServer.Reply(body: Self.png, contentType: "image/png"))
+		#expect(await h.model.submittedImage(Self.ref) == Self.png)
+		#expect(await h.model.submittedImage(Self.ref) == Self.png)
+		#expect(h.server.requests("GET", Self.imagePath).count == 1)
+	}
+
+	@Test func aMissingImageIsNilAndNotCached() async throws {
+		let h = Harness()
+		h.server.on("GET", Self.imagePath, .error(404, "Not found"), FakeServer.Reply(body: Self.png, contentType: "image/png"))
+		#expect(await h.model.submittedImage(Self.ref) == nil)
+		#expect(await h.model.submittedImage(Self.ref) == Self.png)
+		#expect(h.server.requests("GET", Self.imagePath).count == 2)
+	}
+}
