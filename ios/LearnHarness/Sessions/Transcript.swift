@@ -340,6 +340,15 @@ private struct FailureBanner: View {
 
 // MARK: - Assistant parts
 
+extension NativeViewPart {
+	/// A failed tool call the agent retries itself. Not a plugin's question:
+	/// an unreadable one is an error part too, but waits for the learner
+	/// (its dock offers the dismissal), and nothing retries it.
+	var isAgentRetry: Bool {
+		state == "output-error" && toolName != nil && errorText != "Operation aborted" && self["pluginQuestion"] == nil
+	}
+}
+
 private struct AssistantPart: View {
 	let model: SessionModel
 	let message: NativeViewMessage
@@ -349,7 +358,7 @@ private struct AssistantPart: View {
 	let teachBoundaryHere: Bool
 
 	var body: some View {
-		if part.state == "output-error", part.toolName != nil, part.errorText != "Operation aborted" {
+		if part.isAgentRetry {
 			// A call the agent will retry itself: one quiet line, never silence.
 			WorkingLine(text: "Retrying…").opacity(0.7)
 		} else {
