@@ -5,6 +5,7 @@ Run LearnHarness on your own Linux host so the iOS app (and any browser) can use
 The container runs the same server as the desktop app with **cloud mode** turned on by `LH_REMOTE_TOKEN`:
 
 - Every page and API request needs the token. The iOS app sends it as `Authorization: Bearer <token>`. A browser signs in once at `/login` and gets an HttpOnly, `Secure`, `SameSite=Strict` session cookie derived from the token. Cookie-authenticated writes must come from the same origin.
+- The token is the only gate. The host-name allowlist (`LH_ALLOWED_HOSTS`) and cross-site checks that guard a plain `npm start` do not apply, so your domain needs no entry there.
 - Failed browser sign-ins are throttled globally: after 10 failures in 10 minutes, sign-in pauses until the window passes, even for the right token. Bearer requests are not throttled.
 - Learner files uploaded from the phone are stored under `/data/uploads/`. On first boot, if you have never saved a file-access preference, the server restricts the agent's file tools to that folder (Settings → Agent → Tools → File access). You can change it later.
 - ChatGPT subscription sign-in is unavailable: its sign-in returns to a loopback address on the server, which a phone cannot reach. API keys, custom OpenAI-compatible endpoints, the GitHub Copilot and xAI device-code connections, and the Claude Code CLI work.
