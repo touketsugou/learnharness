@@ -14,6 +14,11 @@ import type { ChatGPTStatus } from "../core/contracts/chatgpt.ts";
 import type { NativeSubscriptionSnapshot } from "../core/contracts/subscriptions.ts";
 import { configureWebSubscriptionRuntime, publishWebSubscriptionPacket, webSubscriptionsEnabled, type SubscriptionRuntimeChannel as Channel, type SubscriptionRuntimePacket as Packet } from "../agent/subscription-runtime.ts";
 export { webSubscriptionsEnabled } from "../agent/subscription-runtime.ts";
+import { cloudMode } from "./remote-access.ts";
+/** The status every client sees for ChatGPT in cloud mode (the existing
+ *  "available only in the desktop app" state of the settings card). */
+export const CLOUD_CHATGPT_STATUS: ChatGPTStatus = Object.freeze({ available: false, pending: false, allowBackgroundUse: true, activeId: null, accounts: [], error: null }) as ChatGPTStatus;
+export const CLOUD_CHATGPT_ERROR = "ChatGPT sign-in is unavailable on a cloud server.";
 interface BrowserAction { target: string; origin: string; scope: string; expires: number; current(): Promise<boolean> }
 const KEY = Symbol.for("lh.webSubscriptions");
 interface Registry {
@@ -106,7 +111,13 @@ export function webSubscriptionOwner() {
 export async function webSubscriptionRequest<T>(channel: Channel, op: string, fields: Record<string, unknown>): Promise<T> {
 	const owner = webSubscriptionOwner();
 	let value: unknown;
-	if (channel === "lh:chatgpt") {
+	if (channel === "lh:chatgpt" && cloudMode()) {
+		// Cloud mode (owner 2026-11-07): ChatGPT sign-in needs a loopback
+		// callback on the server host, so it is unavailable — status reports
+		// it, and no catalog or credential lease is ever served.
+		if (op === "status") value = { status: CLOUD_CHATGPT_STATUS, ...owner.chatgpt.stamp() };
+		else throw new Error(CLOUD_CHATGPT_ERROR);
+	} else if (channel === "lh:chatgpt") {
 		if (op === "status") value = { status: await owner.chatgpt.status(), ...owner.chatgpt.stamp() };
 		else if (op === "models") value = await owner.chatgpt.models();
 		else if (op === "lease" && typeof fields.background === "boolean") value = await owner.chatgpt.lease(fields.background, fields);
@@ -122,6 +133,6 @@ configureWebSubscriptionRuntime(webSubscriptionRequest);
 
 export async function webSubscriptionStatus(): Promise<{ chatgpt: ChatGPTStatus; native: NativeSubscriptionSnapshot["statuses"] }> {
 	const owner = webSubscriptionOwner();
-	const [chatgpt, native] = await Promise.all([owner.chatgpt.status(), owner.native.status()]);
+	const [chatgpt, native] = await Promise.all([cloudMode() ? CLOUD_CHATGPT_STATUS : owner.chatgpt.status(), owner.native.status()]);
 	return { chatgpt, native };
 }

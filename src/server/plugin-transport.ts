@@ -1,5 +1,6 @@
 import { isPluginHostError } from "./plugin-host.ts";
 import { apiRequestRefusal } from "./desktop-access.ts";
+import { remoteConfig, remoteRequestVerdict } from "./remote-access.ts";
 import type { PluginFrontendContext, PluginInfo } from "../core/plugins.ts";
 
 /** Thin HTTP adapter, separately injectable so its tests never boot plugins. */
@@ -64,6 +65,17 @@ export function createPluginTransport(deps: { getHost(): Promise<PluginTransport
  * work, including unsupported methods and framework-style OPTIONS responses. */
 export function createPluginDocumentRoute(transport: Pick<ReturnType<typeof createPluginTransport>, "convertDocument">) {
 	const refusal = (request: Request) => {
+		// Cloud mode: the same token rule as Proxy's remoteProxy, and no
+		// browser-only Host or Origin check (owner, 2026-11-15).
+		const remote = remoteConfig();
+		if (remote.mode === "invalid") return json({ error: remote.error }, 500);
+		if (remote.mode === "on") {
+			const verdict = remoteRequestVerdict(request.method, request.headers, remote.token);
+			if (verdict.ok) return undefined;
+			const response = json({ error: verdict.error }, verdict.status);
+			if (verdict.status === 401) response.headers.set("WWW-Authenticate", "Bearer");
+			return response;
+		}
 		const error = apiRequestRefusal(request);
 		return error ? json({ error }, 403) : undefined;
 	};

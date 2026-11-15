@@ -154,6 +154,16 @@ export const THEMES_DIR = path.join(/* turbopackIgnore: true */ DATA_ROOT, "them
  * re-read from disk on every API access. Secrets NEVER go in settings.json
  * — this file keeps that role, alongside .env.local.
  */
+/**
+ * Cloud-mode learner uploads (iOS client, 2026-11-07): files the native
+ * client uploads land here and travel in messages as server paths. In cloud
+ * mode the boot seeds the file-access policy to this folder when the user
+ * has never saved one (src/server/remote-boot.ts).
+ */
+export const UPLOADS_DIR = process.env.LH_UPLOADS_DIR
+	? path.resolve(process.env.LH_UPLOADS_DIR)
+	: path.join(DATA_ROOT, "uploads");
+
 export const AUTH_FILE = process.env.LH_AUTH_FILE
 	? path.resolve(/* turbopackIgnore: true */ process.env.LH_AUTH_FILE)
 	: path.join(/* turbopackIgnore: true */ ROOT, "auth.json");
