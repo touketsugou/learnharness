@@ -110,6 +110,13 @@ extension APIClient {
 		try await send(try json("POST", "/api/chats/\(encodePath(chatId))/dismiss", body: ["input": Input(problemCallId: problemCallId)]))
 	}
 
+	/// Dismiss a pending (or unreadable) plugin question: its exact saved
+	/// occurrence, and its question id when the server knows one.
+	public func dismissPluginQuestion(chatId: String, occurrence: NativePluginQuestionOccurrence, questionId: String?) async throws {
+		struct Input: Encodable { var type = "dismiss-plugin-question"; var occurrence: NativePluginQuestionOccurrence; var questionId: String? }
+		try await send(try json("POST", "/api/chats/\(encodePath(chatId))/dismiss", body: ["input": Input(occurrence: occurrence, questionId: questionId)]))
+	}
+
 	// MARK: Turns
 
 	/// POST /api/chat — starts a turn (acknowledged, then follow nativeStream).

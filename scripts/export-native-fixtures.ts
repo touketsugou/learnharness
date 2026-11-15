@@ -1,7 +1,8 @@
 /**
  * Native-contract fixtures (iOS client, 2026-11-07): the server-projected
  * views and stream frames the Swift decoder tests read, generated from the
- * golden data dir (real records) plus one synthetic pending-quiz session.
+ * golden data dir (real records) plus synthetic sessions: a pending quiz,
+ * a plugin's question and a plugin's practice problem.
  *
  *   npx tsx scripts/export-native-fixtures.ts     # rewrite tests/fixtures/native/
  *
@@ -79,6 +80,57 @@ export async function generateNativeFixtures(): Promise<Record<string, unknown>>
 		differ.patch(answeredView),
 		differ.snapshot(answeredView, "settled"),
 	];
+
+	// A plugin's question, answered only in the web app (iOS: dismiss or open).
+	const pluginOccurrence = { messageId: "msg_asst_plugin", contentIndex: 1, toolCallId: "call-plugin", toolName: "fixture_code" };
+	const pluginQuestion = {
+		id: "chat_native_plugin_question",
+		title: "Fixture: plugin question",
+		createdAt: "2026-11-16T00:00:00.000Z",
+		updatedAt: "2026-11-16T00:00:00.000Z",
+		messages: [
+			{ id: "msg_user_plugin", role: "user", content: "quiz me on loops", timestamp: 1_790_000_000_000 },
+			{
+				...assistant("msg_asst_plugin", [
+					{ type: "thinking", thinking: "A coding check." },
+					{ type: "toolCall", id: "call-plugin", name: "fixture_code", arguments: { question: "Write a loop that sums $1..n$.", payload: {} } },
+				], "toolUse"),
+				lhQuestions: { "1": {
+					protocolVersion: 1, pluginId: "fixture", typeId: "code", label: "Code question", variant: "probe",
+					questionId: "question-plugin", occurrence: pluginOccurrence, contractVersion: 1,
+					input: { question: "Write a loop that sums $1..n$.", payload: {} },
+					questionSchema: { type: "object", properties: {}, additionalProperties: false },
+					answerSchema: { type: "string" },
+					showThinking: true, requiresAnswerRefinement: false,
+				} },
+			},
+		],
+	} as never as Parameters<typeof buildNativeView>[0];
+	out["plugin-question.view.json"] = buildNativeView(pluginQuestion);
+
+	// A plugin's practice problem: discard here, submit in the web app.
+	const problemInput = { statement: "Implement $f(n) = n^2$.", mode: "composition", modelSolution: "return n * n", payload: {} };
+	const pluginProblem = {
+		id: "chat_native_plugin_problem",
+		title: "Fixture: plugin problem",
+		kind: "practice",
+		createdAt: "2026-11-16T00:00:00.000Z",
+		updatedAt: "2026-11-16T00:00:00.000Z",
+		messages: [
+			{ id: "msg_user_problem", role: "user", content: "practice squares", timestamp: 1_790_000_000_000 },
+			assistant("msg_asst_problem", [{ type: "toolCall", id: "call-problem", name: "problem_code", arguments: problemInput }], "toolUse"),
+			{
+				id: "msg_problem_ack", role: "toolResult", toolCallId: "call-problem", toolName: "problem_code",
+				content: [{ type: "text", text: "Problem posed" }], isError: false, timestamp: 1_790_000_000_500,
+				details: { pluginProblem: {
+					protocolVersion: 1, problemId: "problem-fixture", pluginId: "fixture", typeId: "code", label: "Code", contractVersion: 1,
+					input: problemInput, problemSchema: { type: "object", properties: {} }, submissionSchema: { type: "string", minLength: 1 },
+					requiresSubmissionRefinement: false, requiresProcessing: true,
+				} },
+			},
+		],
+	} as never as Parameters<typeof buildNativeView>[0];
+	out["plugin-problem.view.json"] = buildNativeView(pluginProblem);
 	return JSON.parse(JSON.stringify(out)) as Record<string, unknown>;
 }
 

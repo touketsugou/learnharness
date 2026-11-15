@@ -392,3 +392,58 @@ struct SessionModelTurnCueTests {
 		#expect(h.model.turnCue == 0)
 	}
 }
+
+@MainActor
+@Suite("Session model: plugin questions")
+struct SessionModelPluginQuestionTests {
+	private static let occurrence = NativePluginQuestionOccurrence(messageId: "pose", contentIndex: 1, toolCallId: "call_0", toolName: "fixture_code")
+	private static let dock = NativePluginQuestionDock(toolCallId: "call_0", occurrence: occurrence, questionId: "question-pose", label: "Code question", question: "Write it.", available: true)
+	private static let dismissPath = "/api/chats/\(Fixture.chatId)/dismiss"
+
+	private static func pending() -> NativeSessionView {
+		var view = Harness.idle()
+		view.state.dock = .pluginQuestion(dock)
+		return view
+	}
+
+	@Test func dismissingSendsTheExactOccurrenceAndFollowsTheSessionAgain() async throws {
+		let h = Harness()
+		try await h.open(Self.pending())
+		h.server.on("POST", Self.dismissPath, .ok)
+		h.server.on("GET", Fixture.streamPath, .stream([.settled(Harness.idle())]))
+		await h.model.dismissPluginQuestion(Self.dock)
+		try await until { h.model.state?.dock == nil }
+		#expect(h.server.requests("POST", Self.dismissPath).first?.json == .object(["input": .object([
+			"type": .string("dismiss-plugin-question"),
+			"occurrence": .object([
+				"messageId": .string("pose"), "contentIndex": .number(1), "toolCallId": .string("call_0"), "toolName": .string("fixture_code"),
+			]),
+			"questionId": .string("question-pose"),
+		])]))
+		#expect(h.streamRequests == 2)
+	}
+
+	@Test func anUnreadableQuestionIsDismissedWithoutAQuestionId() async throws {
+		let h = Harness()
+		var unreadable = Self.dock
+		unreadable.questionId = nil
+		unreadable.available = false
+		h.server.on("POST", Self.dismissPath, .ok)
+		await h.model.dismissPluginQuestion(unreadable)
+		let input = h.server.requests("POST", Self.dismissPath).first?.json?["input"]
+		#expect(input?["type"] == .string("dismiss-plugin-question"))
+		#expect(input?["questionId"] == nil)
+	}
+
+	@Test func aFailedDismissalSaysSo() async throws {
+		let h = Harness()
+		h.server.on("POST", Self.dismissPath, .error(400, "Answer or dismiss the pending plugin question first"))
+		await h.model.dismissPluginQuestion(Self.dock)
+		#expect(h.model.requestError == "Answer or dismiss the pending plugin question first")
+	}
+
+	@Test func theWebAddressIsTheSessionPageOnThisServer() {
+		let h = Harness()
+		#expect(h.model.webURL == h.server.baseURL.appending(path: "chat").appending(path: Fixture.chatId))
+	}
+}

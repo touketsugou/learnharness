@@ -55,6 +55,40 @@ struct FixtureTests {
 		#expect(view.state.kind == .teach)
 	}
 
+	@Test func pluginQuestionDock() throws {
+		let view = try JSONDecoder().decode(NativeSessionView.self, from: Fixtures.data("plugin-question.view.json"))
+		guard case .pluginQuestion(let dock) = view.state.dock else {
+			Issue.record("expected a plugin question dock")
+			return
+		}
+		#expect(dock.occurrence == NativePluginQuestionOccurrence(messageId: "msg_asst_plugin", contentIndex: 1, toolCallId: "call-plugin", toolName: "fixture_code"))
+		#expect(dock.questionId == "question-plugin")
+		#expect(dock.label == "Code question")
+		#expect(dock.question == "Write a loop that sums $1..n$.")
+		#expect(dock.available)
+	}
+
+	@Test func pluginProblemDockCarriesItsLabel() throws {
+		let view = try JSONDecoder().decode(NativeSessionView.self, from: Fixtures.data("plugin-problem.view.json"))
+		guard case .problem(let dock) = view.state.dock else {
+			Issue.record("expected a problem dock")
+			return
+		}
+		#expect(dock.toolCallId == "call-problem")
+		#expect(dock.plugin?.label == "Code")
+		#expect(dock.statement == "Implement $f(n) = n^2$.")
+		#expect(view.state.kind == .practice)
+	}
+
+	@Test func aBuiltinProblemHasNoPlugin() throws {
+		let json = Data(#"{"type":"problem","toolCallId":"p1","statement":"Prove it."}"#.utf8)
+		guard case .problem(let dock) = try JSONDecoder().decode(NativeDock.self, from: json) else {
+			Issue.record("expected a problem dock")
+			return
+		}
+		#expect(dock.plugin == nil)
+	}
+
 	@Test func practiceViewKnowsItsKind() throws {
 		let name = try #require(Fixtures.viewNames.first { name in
 			(try? JSONDecoder().decode(NativeSessionView.self, from: Fixtures.data(name)))?.state.kind == .practice

@@ -1,0 +1,88 @@
+{
+	"version": 1,
+	"chatId": "chat_native_plugin_problem",
+	"title": "Fixture: plugin problem",
+	"kind": "practice",
+	"createdAt": "2026-11-16T00:00:00.000Z",
+	"updatedAt": "2026-11-16T00:00:00.000Z",
+	"revision": 0,
+	"status": "idle",
+	"phase": null,
+	"activity": null,
+	"dock": {
+		"type": "problem",
+		"toolCallId": "call-problem",
+		"statement": "Implement $f(n) = n^2$.",
+		"mode": "composition",
+		"plugin": {
+			"label": "Code"
+		}
+	},
+	"malformedQuestions": [],
+	"plan": null,
+	"needsContinuation": false,
+	"failure": null,
+	"usage": {
+		"contextTokens": null,
+		"cost": 0,
+		"unpriced": 0
+	},
+	"settings": null,
+	"coverage": null,
+	"messages": [
+		{
+			"id": "msg_user_problem",
+			"role": "user",
+			"parts": [
+				{
+					"type": "text",
+					"text": "practice squares",
+					"state": "done"
+				}
+			]
+		},
+		{
+			"id": "msg_asst_problem",
+			"role": "assistant",
+			"parts": [
+				{
+					"type": "step-start",
+					"sourceMessageId": "msg_asst_problem"
+				},
+				{
+					"type": "tool-problem_code",
+					"toolCallId": "call-problem",
+					"input": {
+						"statement": "Implement $f(n) = n^2$.",
+						"mode": "composition",
+						"payload": {}
+					},
+					"state": "input-available",
+					"pluginProblem": {
+						"protocolVersion": 1,
+						"problemId": "problem-fixture",
+						"pluginId": "fixture",
+						"typeId": "code",
+						"label": "Code",
+						"contractVersion": 1,
+						"input": {
+							"statement": "Implement $f(n) = n^2$.",
+							"mode": "composition",
+							"payload": {}
+						},
+						"problemSchema": {
+							"type": "object",
+							"properties": {}
+						},
+						"submissionSchema": {
+							"type": "string",
+							"minLength": 1
+						},
+						"requiresSubmissionRefinement": false,
+						"requiresProcessing": true
+					}
+				}
+			]
+		}
+	]
+}

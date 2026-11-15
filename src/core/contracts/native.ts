@@ -79,6 +79,28 @@ export interface NativeProblemDock {
 	toolCallId: string;
 	statement?: string;
 	mode?: string;
+	/** A plugin's problem: only the web app can submit it (its editor is plugin code). */
+	plugin?: { label: string };
+}
+
+/** The exact saved position of a plugin question (dismiss-plugin-question's occurrence). */
+export interface NativePluginQuestionOccurrence {
+	messageId: string;
+	contentIndex: number;
+	toolCallId: string;
+	toolName: string;
+}
+
+/** A pending plugin question: answered in the web app, dismissable here.
+ *  `available: false` is an unreadable one (no question text). */
+export interface NativePluginQuestionDock {
+	type: "plugin-question";
+	toolCallId: string;
+	occurrence: NativePluginQuestionOccurrence;
+	questionId?: string;
+	label?: string;
+	question?: string;
+	available: boolean;
 }
 
 /** Practice pause: nothing active, at least one problem posed — Next is available. */
@@ -86,7 +108,7 @@ export interface NativeBetweenProblemsDock {
 	type: "between-problems";
 }
 
-export type NativeDock = NativeQuestionDock | NativeProblemDock | NativeBetweenProblemsDock;
+export type NativeDock = NativeQuestionDock | NativeProblemDock | NativePluginQuestionDock | NativeBetweenProblemsDock;
 
 export interface NativeMalformedQuestion {
 	toolCallId: string;
@@ -211,6 +233,21 @@ const DockSchema = Type.Union([
 		toolCallId: Type.String(),
 		statement: Type.Optional(Type.String()),
 		mode: Type.Optional(Type.String()),
+		plugin: Type.Optional(Type.Object({ label: Type.String() }, { additionalProperties: false })),
+	}, { additionalProperties: false }),
+	Type.Object({
+		type: Type.Literal("plugin-question"),
+		toolCallId: Type.String(),
+		occurrence: Type.Object({
+			messageId: Type.String(),
+			contentIndex: Type.Number(),
+			toolCallId: Type.String(),
+			toolName: Type.String(),
+		}, { additionalProperties: false }),
+		questionId: Type.Optional(Type.String()),
+		label: Type.Optional(Type.String()),
+		question: Type.Optional(Type.String()),
+		available: Type.Boolean(),
 	}, { additionalProperties: false }),
 	Type.Object({ type: Type.Literal("between-problems") }, { additionalProperties: false }),
 ]);

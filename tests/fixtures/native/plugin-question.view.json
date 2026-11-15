@@ -1,0 +1,105 @@
+{
+	"version": 1,
+	"chatId": "chat_native_plugin_question",
+	"title": "Fixture: plugin question",
+	"kind": "teach",
+	"createdAt": "2026-11-16T00:00:00.000Z",
+	"updatedAt": "2026-11-16T00:00:00.000Z",
+	"revision": 0,
+	"status": "idle",
+	"phase": "probe",
+	"activity": null,
+	"dock": {
+		"type": "plugin-question",
+		"toolCallId": "call-plugin",
+		"occurrence": {
+			"messageId": "msg_asst_plugin",
+			"contentIndex": 1,
+			"toolCallId": "call-plugin",
+			"toolName": "fixture_code"
+		},
+		"questionId": "question-plugin",
+		"label": "Code question",
+		"question": "Write a loop that sums $1..n$.",
+		"available": true
+	},
+	"malformedQuestions": [],
+	"plan": null,
+	"needsContinuation": false,
+	"failure": null,
+	"usage": {
+		"contextTokens": null,
+		"cost": 0,
+		"unpriced": 0
+	},
+	"settings": null,
+	"coverage": null,
+	"messages": [
+		{
+			"id": "msg_user_plugin",
+			"role": "user",
+			"parts": [
+				{
+					"type": "text",
+					"text": "quiz me on loops",
+					"state": "done"
+				}
+			]
+		},
+		{
+			"id": "msg_asst_plugin",
+			"role": "assistant",
+			"parts": [
+				{
+					"type": "step-start",
+					"sourceMessageId": "msg_asst_plugin"
+				},
+				{
+					"type": "reasoning",
+					"id": "msg_asst_plugin-r0",
+					"text": "A coding check.",
+					"state": "done"
+				},
+				{
+					"type": "tool-fixture_code",
+					"toolCallId": "call-plugin",
+					"sourceMessageId": "msg_asst_plugin",
+					"sourceContentIndex": 1,
+					"pluginQuestion": {
+						"status": "posed",
+						"snapshot": {
+							"protocolVersion": 1,
+							"pluginId": "fixture",
+							"typeId": "code",
+							"label": "Code question",
+							"variant": "probe",
+							"questionId": "question-plugin",
+							"occurrence": {
+								"messageId": "msg_asst_plugin",
+								"contentIndex": 1,
+								"toolCallId": "call-plugin",
+								"toolName": "fixture_code"
+							},
+							"contractVersion": 1,
+							"input": {
+								"question": "Write a loop that sums $1..n$.",
+								"payload": {}
+							},
+							"questionSchema": {
+								"type": "object",
+								"properties": {},
+								"additionalProperties": false
+							},
+							"answerSchema": {
+								"type": "string"
+							},
+							"showThinking": true,
+							"requiresAnswerRefinement": false
+						}
+					},
+					"state": "input-available"
+				}
+			]
+		}
+	]
+}

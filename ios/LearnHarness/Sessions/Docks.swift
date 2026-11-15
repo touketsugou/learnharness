@@ -26,6 +26,9 @@ struct SessionDock: View {
 					case .problem(let problem):
 						PracticeDockView(model: model, problem: problem).id(problem.toolCallId)
 							.modifier(DockHeight(maxHeight: maxHeight))
+					case .pluginQuestion(let dock):
+						PluginQuestionDockView(model: model, dock: dock).id(dock.toolCallId)
+							.modifier(DockHeight(maxHeight: maxHeight))
 					default:
 						ComposerView(model: model, nextReady: model.state?.dock == .betweenProblems)
 					}
@@ -389,17 +392,50 @@ struct PracticeDockView: View {
 	}
 
 	var body: some View {
-		VStack(alignment: .leading, spacing: 10) {
-			DisclosureGroup(isExpanded: $showStatement) {
-				ScrollView {
-					MarkdownView(problem.statement ?? "").frame(maxWidth: .infinity, alignment: .leading)
-						.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { statementHeight = $0 }
-				}
-				.frame(maxHeight: min(220, statementHeight ?? 220))
-			} label: {
-				CardLabel(text: "Problem\(problem.mode.map { " · \($0)" } ?? "")", systemImage: "puzzlepiece")
+		if let plugin = problem.plugin {
+			pluginBody(plugin)
+		} else {
+			builtinBody
+		}
+	}
+
+	private var statement: some View {
+		DisclosureGroup(isExpanded: $showStatement) {
+			ScrollView {
+				MarkdownView(problem.statement ?? "").frame(maxWidth: .infinity, alignment: .leading)
+					.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { statementHeight = $0 }
 			}
-			.tint(.secondary)
+			.frame(maxHeight: min(220, statementHeight ?? 220))
+		} label: {
+			let kind = problem.plugin.map { " · \($0.label)" } ?? ""
+			CardLabel(text: "Problem\(kind)\(problem.mode.map { " · \($0)" } ?? "")", systemImage: "puzzlepiece")
+		}
+		.tint(.secondary)
+	}
+
+	/// A plugin's problem: its submission editor is plugin code, so it is
+	/// answered in the web app; here it can only be discarded.
+	private func pluginBody(_ plugin: NativePluginInfo) -> some View {
+		VStack(alignment: .leading, spacing: 10) {
+			statement
+			Text("Answer this problem in the web app.").font(.callout).foregroundStyle(.secondary)
+			HStack {
+				Button("Discard", role: .destructive) { Task { await model.discardProblem(problem.toolCallId) } }
+					.buttonStyle(.bordered)
+				Spacer()
+				if model.isRunning {
+					Button { Task { await model.stopTurn() } } label: { Image(systemName: "stop.circle.fill") }
+						.tint(.red)
+				}
+				OpenInBrowserButton(url: model.webURL)
+			}
+		}
+		.padding(14)
+	}
+
+	private var builtinBody: some View {
+		VStack(alignment: .leading, spacing: 10) {
+			statement
 			TextField("Your thinking or answer…", text: thinking, axis: .vertical)
 				.lineLimit(2...8)
 				.padding(10)
@@ -427,6 +463,54 @@ struct PracticeDockView: View {
 			}
 		}
 		.padding(14)
+	}
+}
+
+// MARK: - Plugin question dock
+
+/// A plugin's question: its answer editor is plugin code, so it is answered
+/// in the web app; here it shows its text and can be dismissed. An
+/// unavailable one (unreadable on the server) can only be dismissed, as on
+/// the web.
+struct PluginQuestionDockView: View {
+	let model: SessionModel
+	let dock: NativePluginQuestionDock
+	/// The question's height: its scroll view grows no taller.
+	@State private var questionHeight: CGFloat?
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 10) {
+			if dock.available {
+				CardLabel(text: dock.label ?? "Question", systemImage: "puzzlepiece")
+				ScrollView {
+					MarkdownView(dock.question ?? "").fontWeight(.medium).frame(maxWidth: .infinity, alignment: .leading)
+						.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { questionHeight = $0 }
+				}
+				.frame(maxHeight: min(220, questionHeight ?? 220))
+				Text("Answer this question in the web app.").font(.callout).foregroundStyle(.secondary)
+			} else {
+				Text("Question unavailable").font(.callout).foregroundStyle(.secondary)
+			}
+			HStack {
+				Button("Dismiss Question", role: .destructive) { Task { await model.dismissPluginQuestion(dock) } }
+					.buttonStyle(.bordered)
+				Spacer()
+				if dock.available { OpenInBrowserButton(url: model.webURL) }
+			}
+		}
+		.padding(14)
+	}
+}
+
+/// Opens this session in the server's web app (Safari), where a plugin's
+/// question or problem can be answered.
+struct OpenInBrowserButton: View {
+	let url: URL
+	@Environment(\.openURL) private var openURL
+
+	var body: some View {
+		Button { openURL(url) } label: { Label("Open in Browser", systemImage: "arrow.up.right.square") }
+			.buttonStyle(.borderedProminent)
 	}
 }
 
