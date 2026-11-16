@@ -55,7 +55,8 @@ main { width: 100%; max-width: 360px; }
 h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
 p { margin: 0 0 20px; color: var(--muted); }
 label { display: block; font-size: 13px; margin-bottom: 6px; }
-input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--fg); font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
+/* 16px, not 14: iOS Safari zooms into any focused field under 16px and the page then overflows the screen. */
+input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--fg); font: 16px ui-monospace, SFMono-Regular, Menlo, monospace; }
 input:focus { outline: 2px solid var(--fg); outline-offset: 1px; }
 button { margin-top: 16px; width: 100%; padding: 10px 12px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-fg); font: inherit; font-weight: 600; cursor: pointer; }
 .error { color: var(--error); margin: 0 0 16px; }
