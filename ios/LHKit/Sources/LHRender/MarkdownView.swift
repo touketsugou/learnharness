@@ -185,9 +185,9 @@ private struct BlockView: View {
 
 	private func headingFont(_ level: Int) -> Font {
 		switch level {
-		case 1: .title2.weight(.semibold)
-		case 2: .title3.weight(.semibold)
-		default: .headline
+		case 1: LHFont.prose(.title2).weight(.semibold)
+		case 2: LHFont.prose(.title3).weight(.semibold)
+		default: LHFont.prose(.headline).weight(.semibold)
 		}
 	}
 }
@@ -203,7 +203,7 @@ private struct ListBlock: View {
 			ForEach(Array(items.enumerated()), id: \.offset) { offset, item in
 				HStack(alignment: .firstTextBaseline, spacing: 8) {
 					marker(offset, item)
-						.font(Font.system(context.textStyle).monospacedDigit())
+						.font(LHFont.prose(context.textStyle).monospacedDigit())
 						.foregroundStyle(.secondary)
 					BlockList(blocks: Array(item.children), context: context)
 				}
@@ -230,7 +230,7 @@ private struct TableBlock: View {
 			Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
 				GridRow {
 					ForEach(Array(table.head.cells.enumerated()), id: \.offset) { _, cell in
-						InlineText(container: cell, context: context, font: Font.system(context.textStyle).weight(.semibold))
+						InlineText(container: cell, context: context, font: LHFont.prose(context.textStyle).weight(.semibold))
 					}
 				}
 				Divider()
@@ -253,11 +253,12 @@ struct CodeBlockView: View {
 	var body: some View {
 		ScrollView(.horizontal, showsIndicators: false) {
 			SwiftUI.Text(verbatim: code.hasSuffix("\n") ? String(code.dropLast()) : code)
-				.font(.system(.callout, design: .monospaced))
+				.font(LHFont.mono(.callout))
 				.textSelection(.enabled)
 				.padding(12)
 		}
-		.background(RoundedRectangle(cornerRadius: 8).fill(Color(uiColor: .secondarySystemBackground)))
+		.background(RoundedRectangle(cornerRadius: 8).fill(LHColor.raised))
+		.overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(LHColor.hairline))
 	}
 }
 
@@ -270,7 +271,7 @@ private struct InlineText: View {
 
 	var body: some View {
 		InlineBuilder(context: context).text(for: container)
-			.font(font ?? Font.system(context.textStyle))
+			.font(font ?? LHFont.prose(context.textStyle))
 			.fixedSize(horizontal: false, vertical: true)
 			.textSelection(.enabled)
 	}
@@ -302,7 +303,7 @@ private struct InlineBuilder {
 		case let strike as Strikethrough:
 			return text(for: strike).strikethrough()
 		case let code as InlineCode:
-			return SwiftUI.Text(verbatim: code.code).font(.system(context.textStyle, design: .monospaced))
+			return SwiftUI.Text(verbatim: code.code).font(LHFont.mono(context.textStyle))
 		case let link as Markdown.Link:
 			var label = AttributedString(link.plainText)
 			if let destination = link.destination, let url = URL(string: destination) {
@@ -325,7 +326,7 @@ private struct InlineBuilder {
 		guard context.math.indices.contains(index) else { return SwiftUI.Text(verbatim: "") }
 		let latex = context.math[index]
 		guard let rendered = MathRenderer.shared.render(latex, fontSize: context.fontSize, dark: context.dark, display: false) else {
-			return SwiftUI.Text(verbatim: "$\(latex)$").font(.system(context.textStyle, design: .monospaced))
+			return SwiftUI.Text(verbatim: "$\(latex)$").font(LHFont.mono(context.textStyle))
 		}
 		return SwiftUI.Text(SwiftUI.Image(uiImage: rendered.image)).baselineOffset(-rendered.descent)
 	}
@@ -368,5 +369,38 @@ extension Font.TextStyle {
 		case .caption2: .caption2
 		default: .body
 		}
+	}
+}
+
+// MARK: - One-line preview
+
+/// A Markdown text flattened to one line of plain text, each formula shown as
+/// "…" (a collapsed problem's preview, truncated by its view: math won't fit
+/// one line).
+public enum MarkdownPreview {
+	public static func oneLine(_ source: String) -> String {
+		var pieces: [String] = []
+		for chunk in MathSegmenter.segment(source) {
+			switch chunk {
+			case .displayMath:
+				pieces.append("…")
+			case .markdown(let text, _):
+				let document = Markdown.Document(parsing: text)
+				for block in document.children {
+					let plain = plainText(block).trimmingCharacters(in: .whitespacesAndNewlines)
+					if !plain.isEmpty { pieces.append(plain) }
+				}
+			}
+		}
+		return pieces.joined(separator: " ")
+	}
+
+	private static func plainText(_ markup: any Markup) -> String {
+		if let text = markup as? Markdown.Text {
+			return MathSegmenter.runs(in: text.string).map { $0.math == nil ? $0.text : "…" }.joined()
+		}
+		if let code = markup as? InlineCode { return code.code }
+		if markup is SoftBreak || markup is LineBreak { return " " }
+		return markup.children.map(plainText).joined()
 	}
 }

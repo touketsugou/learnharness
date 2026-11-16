@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// The sessionless draft (web /chat/new): a session exists only once the
@@ -13,73 +14,96 @@ struct NewSessionView: View {
 	@State private var busy = false
 	@State private var error: String?
 	@FocusState private var focused: Bool
+	@Environment(\.horizontalSizeClass) private var sizeClass
 
 	var body: some View {
 		VStack(spacing: 0) {
-			ContentUnavailableView(
-				mode == .practice ? "New practice session" : "New session",
-				systemImage: mode == .practice ? "pencil.and.list.clipboard" : "sparkles",
-				description: Text(mode == .practice
-					? "Pick nodes from your knowledge graph, describe what you want to practice, or bring your own problem."
-					: "The teacher will open by probing what you already know.")
-			)
-			VStack(alignment: .leading, spacing: 10) {
-				Picker("Session type", selection: $mode) {
-					Text("Teach").tag(ChatKind.teach)
-					Text("Practice").tag(ChatKind.practice)
-				}
-				.pickerStyle(.segmented)
-				if mode == .practice { pickBar }
-				if let error {
-					Text(error).font(.callout).foregroundStyle(.red)
-				}
-				DictationStatusRow().padding(.horizontal, -14)
-				HStack(alignment: .bottom, spacing: 6) {
-					AttachButton(text: $text)
-					TextField(mode == .practice ? "What do you want to practice?" : "What do you want to learn?", text: $text, axis: .vertical)
-						.lineLimit(1...8)
-						.focused($focused)
-						.padding(.horizontal, 12)
-						.padding(.vertical, 9)
-						.background(RoundedRectangle(cornerRadius: 18).fill(Color(uiColor: .secondarySystemBackground)))
-					MicButton(text: $text)
-					if busy {
-						ProgressView().frame(width: 32, height: 32)
-					} else {
-						Button { Task { await start() } } label: {
-							Image(systemName: "arrow.up.circle.fill").font(.title)
+			ScrollView {
+				VStack(alignment: .leading, spacing: 22) {
+					Text("New session")
+						.font(LHFont.title(34, relativeTo: .largeTitle))
+						.foregroundStyle(LHColor.ink)
+						.accessibilityAddTraits(.isHeader)
+					VStack(alignment: .leading, spacing: 10) {
+						CardLabel(text: "Session type")
+						HStack(alignment: .top, spacing: 10) {
+							ModeCard(title: "Teach", systemImage: "sparkles",
+									 detail: "Opens by probing what you already know, then plans the steps.",
+									 selected: mode == .teach) { mode = .teach }
+							ModeCard(title: "Practice", systemImage: "pencil.and.list.clipboard",
+									 detail: "Problems from your graph, or bring your own problem.",
+									 selected: mode == .practice) { mode = .practice }
 						}
-						.accessibilityLabel("Start session")
-						.disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+					}
+					if mode == .practice { material }
+				}
+				.padding(.horizontal, 16)
+				.padding(.top, 8)
+				.frame(maxWidth: 820, alignment: .leading)
+				.frame(maxWidth: .infinity)
+			}
+			.scrollDismissesKeyboard(.interactively)
+			VStack(alignment: .leading, spacing: 8) {
+				if let error {
+					Text(error).font(LHFont.prose(.callout)).foregroundStyle(LHColor.error)
+				}
+				DictationStatusRow().padding(.horizontal, -12)
+				HStack(alignment: .bottom, spacing: 8) {
+					AttachButton(text: $text).modifier(CircleChrome())
+					ComposerField(placeholder: mode == .practice ? "What do you want to practice?" : "What do you want to learn?",
+								  text: $text, lines: 1...8, focused: $focused)
+					if busy {
+						ProgressView().frame(width: 44, height: 44)
+					} else {
+						SendButton(label: "Start session", enabled: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+							Task { await start() }
+						}
 					}
 				}
 			}
-			.padding(.horizontal, 14)
+			.padding(.horizontal, 12)
 			.padding(.vertical, 10)
 			.frame(maxWidth: 820)
+			.overlay(alignment: .top) { Rectangle().fill(LHColor.hairline).frame(height: 1) }
 		}
-		.navigationTitle("New session")
+		.background(LHColor.bg)
+		.navigationTitle("")
 		.navigationBarTitleDisplayMode(.inline)
+		// iPhone: the composer takes the bottom edge, as in a session.
+		.toolbar(sizeClass == .compact ? .hidden : .automatic, for: .tabBar)
+		.sensoryFeedback(.selection, trigger: mode)
 		.sheet(isPresented: $showPicker) {
 			if let client = app.client { PracticeMaterialPicker(client: client, picks: $picks) }
 		}
 		.onAppear { focused = true }
 	}
 
-	/// The web pick bar: "Pick nodes", or the count with Clear.
-	private var pickBar: some View {
-		HStack(spacing: 10) {
-			Button { showPicker = true } label: {
-				Label(picks.isEmpty ? "Pick nodes" : "\(picks.count) \(picks.count == 1 ? "node" : "nodes") selected",
-					  systemImage: "point.3.connected.trianglepath.dotted")
+	/// Practice material: the picked nodes as removable chips, then "Pick nodes".
+	private var material: some View {
+		VStack(alignment: .leading, spacing: 10) {
+			HStack {
+				CardLabel(text: picks.isEmpty ? "Material" : "Material · \(picks.count) \(picks.count == 1 ? "node" : "nodes")")
+				Spacer()
+				if !picks.isEmpty {
+					QuietButton(title: "Clear") { picks = [] }
+				}
 			}
-			.buttonStyle(.bordered)
-			if !picks.isEmpty {
-				Button("Clear", role: .destructive) { picks = [] }
-					.buttonStyle(.borderless)
+			FlowLayout(spacing: 8) {
+				ForEach(picks, id: \.id) { pick in
+					NodeChip(name: pick.name) { picks.removeAll { $0.id == pick.id } }
+				}
+				Button { showPicker = true } label: {
+					Label("Pick nodes", systemImage: "plus")
+						.font(LHFont.prose(.subheadline).weight(.medium))
+						.foregroundStyle(LHColor.ink)
+						.padding(.horizontal, 14)
+						.frame(minHeight: 44)
+						.overlay(Capsule().strokeBorder(LHColor.edge, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+						.contentShape(Capsule())
+				}
+				.buttonStyle(.plain)
 			}
 		}
-		.controlSize(.small)
 	}
 
 	private func start() async {
@@ -210,6 +234,63 @@ struct PracticeMaterialPicker: View {
 			self.error = (error as? APIError)?.message ?? error.localizedDescription
 		}
 		loading = false
+	}
+}
+
+/// A session type: a tappable card, outlined in ink when chosen.
+private struct ModeCard: View {
+	let title: String
+	let systemImage: String
+	let detail: String
+	let selected: Bool
+	let action: () -> Void
+
+	var body: some View {
+		Button(action: action) {
+			VStack(alignment: .leading, spacing: 8) {
+				HStack {
+					Image(systemName: systemImage)
+					Spacer()
+					Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+						.foregroundStyle(selected ? LHColor.ink : LHColor.muted)
+				}
+				.font(.system(size: 17))
+				Text(title).font(LHFont.title(19, relativeTo: .title3)).foregroundStyle(LHColor.ink)
+				Text(detail).font(LHFont.prose(.subheadline)).foregroundStyle(LHColor.muted)
+					.fixedSize(horizontal: false, vertical: true)
+			}
+			.padding(14)
+			.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+			.background(RoundedRectangle(cornerRadius: 14).fill(LHColor.raised))
+			.overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(selected ? LHColor.ink : LHColor.hairline, lineWidth: selected ? 1.5 : 1))
+			.contentShape(RoundedRectangle(cornerRadius: 14))
+		}
+		.buttonStyle(.plain)
+		.foregroundStyle(LHColor.ink)
+		.accessibilityAddTraits(selected ? .isSelected : [])
+	}
+}
+
+/// A picked node: its name and a remove button, 44 pt tall.
+private struct NodeChip: View {
+	let name: String
+	let remove: () -> Void
+
+	var body: some View {
+		HStack(spacing: 2) {
+			Text(name).font(LHFont.prose(.subheadline)).foregroundStyle(LHColor.ink).lineLimit(1)
+				.padding(.leading, 14)
+			Button(action: remove) {
+				Image(systemName: "xmark").font(.system(size: 11, weight: .bold)).foregroundStyle(LHColor.muted)
+					.frame(width: 36, height: 44)
+					.contentShape(Rectangle())
+			}
+			.buttonStyle(.plain)
+			.accessibilityLabel("Remove \(name)")
+		}
+		.frame(minHeight: 44)
+		.background(Capsule().fill(LHColor.raised))
+		.overlay(Capsule().strokeBorder(LHColor.hairline))
 	}
 }
 

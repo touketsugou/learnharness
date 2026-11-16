@@ -13,8 +13,8 @@ struct CardBox<Content: View>: View {
 		VStack(alignment: .leading, spacing: 8) { content }
 			.frame(maxWidth: .infinity, alignment: .leading)
 			.padding(14)
-			.background(RoundedRectangle(cornerRadius: 12).fill(tint?.opacity(0.08) ?? Color(uiColor: .secondarySystemBackground)))
-			.overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.quaternary))
+			.background(RoundedRectangle(cornerRadius: 12).fill(tint?.opacity(0.07) ?? LHColor.raised))
+			.overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(tint?.opacity(0.35) ?? LHColor.edge))
 	}
 }
 
@@ -25,10 +25,10 @@ struct CardLabel: View {
 	var body: some View {
 		HStack(spacing: 6) {
 			if let systemImage { Image(systemName: systemImage) }
-			Text(text.uppercased()).tracking(0.6)
+			Text(text)
 		}
-		.font(.caption.weight(.medium))
-		.foregroundStyle(.secondary)
+		.lhLabel()
+		.foregroundStyle(LHColor.muted)
 	}
 }
 
@@ -39,7 +39,7 @@ struct CardError: View {
 	var body: some View {
 		Label(text, systemImage: "exclamationmark.triangle.fill")
 			.font(.caption)
-			.foregroundStyle(.red)
+			.foregroundStyle(LHColor.error)
 	}
 }
 
@@ -91,8 +91,8 @@ struct AnsweredCard: View {
 						CardLabel(text: label)
 						if kind == "quiz" {
 							if answer["dontKnow"]?.boolValue == true { Badge(text: "didn't know", color: .secondary) }
-							else if answer["correct"]?.boolValue == true { Badge(text: "correct", color: .green) }
-							else { Badge(text: "incorrect", color: .red) }
+							else if answer["correct"]?.boolValue == true { Badge(text: "correct", color: LHColor.success) }
+							else { Badge(text: "incorrect", color: LHColor.error) }
 						}
 						Spacer()
 						if kind == "quiz", answer["dontKnow"]?.boolValue != true, let confidence = answer["confidence"]?.intValue {
@@ -145,7 +145,7 @@ struct AnsweredCard: View {
 							.font(.footnote)
 						MarkdownView(option["label"]?.stringValue ?? "", textStyle: .callout)
 						if kind == "quiz", correct.contains(index) {
-							Image(systemName: "checkmark").foregroundStyle(.green).font(.footnote.weight(.bold))
+							Image(systemName: "checkmark").foregroundStyle(LHColor.success).font(.footnote.weight(.bold))
 						}
 					}
 				}
@@ -181,7 +181,7 @@ struct ThinkingQuote: View {
 					if let model { SubmittedImages(model: model, refs: images) }
 				}
 			} label: {
-				Text(label).font(.caption2.weight(.semibold)).tracking(0.6).foregroundStyle(.secondary)
+				Text(label).lhLabel().foregroundStyle(.secondary)
 			}
 			.tint(.secondary)
 			.padding(.leading, 10)
@@ -194,7 +194,7 @@ struct MalformedQuestionCard: View {
 	let retry: () -> Void
 
 	var body: some View {
-		CardBox(tint: .orange) {
+		CardBox(tint: LHColor.amber) {
 			CardLabel(text: "Question could not be displayed", systemImage: "exclamationmark.bubble")
 			Text(blocked ? "Answer or discard the remaining question first." : "The teacher's question arrived incomplete. Ask for a replacement.")
 				.font(.callout).foregroundStyle(.secondary)
@@ -290,8 +290,8 @@ struct DispatchCard: View {
 		if let job = model.job(forToolCall: toolCallId), !job.isRunning {
 			HStack(spacing: 6) {
 				Image(systemName: job.status == "error" ? "xmark" : "checkmark")
-					.foregroundStyle(job.status == "error" ? .red : .secondary)
-				Text(label.uppercased()).tracking(0.6).font(.caption.weight(.medium))
+					.foregroundStyle(job.status == "error" ? LHColor.error : .secondary)
+				Text(label.uppercased()).lhLabel()
 				Text(job.status == "error" ? "failed" : "finished").font(.caption)
 				if job.status == "error", let error = job.error { Text("· \(error)").font(.caption).lineLimit(2) }
 			}
@@ -347,7 +347,7 @@ struct SteerArtifactCard: View {
 		} else if let aborted = message.parts.first(where: { $0.type == "data-subagent-aborted" })?.data {
 			HStack(spacing: 6) {
 				Image(systemName: "xmark.circle")
-				Text((aborted["kind"]?.stringValue ?? "job").uppercased()).tracking(0.6).font(.caption.weight(.medium))
+				Text((aborted["kind"]?.stringValue ?? "job").uppercased()).lhLabel()
 				Text("aborted by the learner").font(.caption)
 			}
 			.foregroundStyle(.secondary)
@@ -366,7 +366,7 @@ private struct ResearchResultCard: View {
 		let sources = result?["sources"]?.arrayValue ?? []
 		let pages = result?["pagesRead"]?.arrayValue ?? result?["pagesConsulted"]?.arrayValue ?? []
 		if brief.hasPrefix(failedPrefix) {
-			CardBox(tint: .red) {
+			CardBox(tint: LHColor.error) {
 				CardLabel(text: title)
 				MarkdownView(brief, textStyle: .callout)
 			}
@@ -384,7 +384,7 @@ private struct ResearchResultCard: View {
 			} label: {
 				HStack(spacing: 6) {
 					Image(systemName: "checkmark")
-					Text(title.uppercased()).tracking(0.6).font(.caption.weight(.medium))
+					Text(title.uppercased()).lhLabel()
 					Text(title == "PDF" ? "reading complete" : "complete").font(.caption)
 					if !sources.isEmpty { Text("· \(sources.count) sources").font(.caption) }
 					if !pages.isEmpty { Text("· read \(pages.count) page\(pages.count == 1 ? "" : "s")").font(.caption) }
@@ -559,10 +559,10 @@ struct ConcludeCard: View {
 		let verdict = input?["verdict"]?.stringValue ?? ""
 		let reveal = part["reveal"]?.stringValue ?? input?["solutionReveal"]?.stringValue ?? ""
 		if outcome == "dismissed" && verdict.isEmpty && reveal.isEmpty {
-			Text("PROBLEM DISCARDED").font(.caption.weight(.medium)).tracking(0.6).foregroundStyle(.secondary)
+			Text("PROBLEM DISCARDED").lhLabel().foregroundStyle(.secondary)
 				.frame(maxWidth: .infinity)
 		} else {
-			CardBox(tint: outcome == "solved" ? .green : nil) {
+			CardBox(tint: outcome == "solved" ? LHColor.success : nil) {
 				CardLabel(text: outcome.isEmpty ? "Concluded" : outcome, systemImage: "flag.checkered")
 				if !verdict.isEmpty { MarkdownView(verdict) }
 				if !reveal.isEmpty {
@@ -617,9 +617,9 @@ struct MarkerCard: View {
 		case "data-practice-next":
 			HStack(spacing: 6) {
 				Image(systemName: "arrow.right")
-				Text("NEXT PROBLEM").tracking(0.6)
+				Text("Next problem")
 			}
-			.font(.caption.weight(.medium)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+			.lhLabel().foregroundStyle(LHColor.muted).frame(maxWidth: .infinity)
 		default:
 			EmptyView()
 		}
@@ -667,6 +667,31 @@ struct PlanSheet: View {
 			.navigationTitle("Plan")
 			.navigationBarTitleDisplayMode(.inline)
 			.toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+		}
+	}
+}
+
+/// The header's "STEP n OF m": the visited nodes plus the current one, of
+/// every node in the plan (a rough count on a branching plan).
+enum PlanProgress {
+	static func step(_ plan: NativePlan) -> (n: Int, m: Int) {
+		let m = plan.tree.nodes.count
+		var n = plan.visited.count
+		if let current = plan.current, !plan.visited.contains(current) { n += 1 }
+		return (min(n, m), m)
+	}
+
+	/// The session header's second line.
+	static func subtitle(kind: ChatKind?, phase: TeachingPhase?, plan: NativePlan?) -> String {
+		if kind == .practice { return "Practice" }
+		if let plan, !plan.tree.nodes.isEmpty {
+			let step = step(plan)
+			return "Teaching · Step \(step.n) of \(step.m)"
+		}
+		switch phase {
+		case .probe: return "Probe"
+		case .plan: return "Planning"
+		default: return "Teaching"
 		}
 	}
 }

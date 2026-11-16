@@ -147,9 +147,9 @@ struct UserRow: View {
 
 	var body: some View {
 		HStack(spacing: 0) {
-			Rectangle().fill(.secondary.opacity(0.35)).frame(width: 4)
+			Rectangle().fill(LHColor.edge).frame(width: 2)
 			VStack(alignment: .leading, spacing: 4) {
-				Text(label).font(.caption2.weight(.semibold)).tracking(0.6).foregroundStyle(.secondary)
+				Text(label).lhLabel(10).foregroundStyle(LHColor.muted)
 				// An image-only message has no text line.
 				if !text.characters.isEmpty { Text(text).textSelection(.enabled) }
 				if let model { SubmittedImages(model: model, refs: images) }
@@ -158,7 +158,7 @@ struct UserRow: View {
 			.padding(.horizontal, 12)
 			Spacer(minLength: 0)
 		}
-		.background(Color(uiColor: .secondarySystemBackground))
+		.background(LHColor.raised)
 		.clipShape(RoundedRectangle(cornerRadius: 6))
 	}
 }
@@ -266,11 +266,11 @@ struct PhaseDivider: View {
 
 	var body: some View {
 		HStack(spacing: 10) {
-			Rectangle().fill(.quaternary).frame(height: 1)
-			Text(title.uppercased()).font(.caption2.weight(.semibold)).tracking(0.8).foregroundStyle(.secondary)
+			Rectangle().fill(LHColor.hairline).frame(height: 1)
+			Text(title.uppercased()).lhLabel().foregroundStyle(.secondary)
 				.lineLimit(1)
 				.fixedSize()
-			Rectangle().fill(.quaternary).frame(height: 1)
+			Rectangle().fill(LHColor.hairline).frame(height: 1)
 		}
 		.padding(.vertical, 6)
 	}
@@ -313,7 +313,7 @@ struct WorkingLine: View {
 	var body: some View {
 		HStack(spacing: 8) {
 			ProgressView().controlSize(.small)
-			Text(text.uppercased()).font(.caption.weight(.medium)).tracking(0.6).foregroundStyle(.secondary)
+			Text(text.uppercased()).lhLabel().foregroundStyle(.secondary)
 		}
 	}
 }
@@ -325,7 +325,7 @@ private struct FailureBanner: View {
 
 	var body: some View {
 		HStack(alignment: .top, spacing: 10) {
-			Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+			Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(LHColor.error)
 			Text("Something went wrong: \(message)").font(.callout)
 			Spacer(minLength: 0)
 			if canRetry {
@@ -333,8 +333,8 @@ private struct FailureBanner: View {
 			}
 		}
 		.padding(12)
-		.background(RoundedRectangle(cornerRadius: 10).fill(Color.red.opacity(0.08)))
-		.overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.red.opacity(0.35)))
+		.background(RoundedRectangle(cornerRadius: 10).fill(LHColor.error.opacity(0.08)))
+		.overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(LHColor.error.opacity(0.35)))
 	}
 }
 
@@ -449,7 +449,7 @@ private struct ReasoningRow: View {
 			} label: {
 				HStack(spacing: 6) {
 					if live { ProgressView().controlSize(.mini) }
-					Text("THINKING").font(.caption.weight(.medium)).tracking(0.6).foregroundStyle(.secondary)
+					Text("THINKING").lhLabel().foregroundStyle(.secondary)
 				}
 			}
 			.tint(.secondary)

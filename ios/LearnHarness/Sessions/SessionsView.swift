@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 enum SidebarSelection: Hashable {
@@ -12,6 +13,8 @@ struct SessionsView: View {
 	@Environment(AppModel.self) private var model
 	@State private var chats: [ChatListItem] = []
 	@State private var selection: SidebarSelection?
+	@State private var filter: SessionFilter = .all
+	@State private var query = ""
 	@State private var offline = false
 	@State private var error: String?
 	@State private var renaming: ChatListItem?
@@ -26,30 +29,40 @@ struct SessionsView: View {
 
 	var body: some View {
 		NavigationSplitView {
+			let sections = SessionListSections(chats: chats, filter: filter, query: query)
 			List(selection: $selection) {
-				if offline {
-					Label("Offline — showing saved sessions", systemImage: "wifi.slash")
-						.font(.footnote)
-						.foregroundStyle(.secondary)
+				Section {
+					FilterBar(filter: $filter)
+						.listRowBackground(Color.clear)
+						.listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+						.listRowSeparator(.hidden)
+					if offline {
+						Label("Offline — showing saved sessions", systemImage: "wifi.slash")
+							.font(LHFont.prose(.footnote))
+							.foregroundStyle(LHColor.muted)
+							.listRowBackground(Color.clear)
+							.listRowSeparator(.hidden)
+					}
 				}
-				ForEach(chats) { chat in
-					NavigationLink(value: SidebarSelection.chat(chat.id)) {
-						SessionRow(chat: chat)
+				if !sections.waiting.isEmpty {
+					Section {
+						rows(sections.waiting)
+					} header: {
+						SectionHeader(title: "Waiting for you", count: sections.waiting.count)
 					}
-					.swipeActions(edge: .trailing) {
-						// Not role: .destructive — that animates the row away before
-						// the confirmation, and the list then disagrees with the data.
-						Button("Delete", systemImage: "trash") { deleting = chat }
-							.tint(.red)
-						Button("Rename", systemImage: "pencil") { startRename(chat) }
-							.tint(.blue)
-					}
-					.contextMenu {
-						Button("Rename", systemImage: "pencil") { startRename(chat) }
-						Button("Delete", systemImage: "trash", role: .destructive) { deleting = chat }
+				}
+				if !sections.recent.isEmpty {
+					Section {
+						rows(sections.recent)
+					} header: {
+						SectionHeader(title: "Recent")
 					}
 				}
 			}
+			.listStyle(.insetGrouped)
+			.scrollContentBackground(.hidden)
+			.background(LHColor.bg)
+			.searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search sessions")
 			.overlay {
 				if chats.isEmpty, error == nil, !offline {
 					ContentUnavailableView {
@@ -57,12 +70,19 @@ struct SessionsView: View {
 					} actions: {
 						Button("New session") { selection = .new }
 					}
+				} else if !chats.isEmpty, sections.isEmpty {
+					ContentUnavailableView.search(text: query)
 				}
 			}
 			.navigationTitle("Sessions")
 			.toolbar {
+				ToolbarItem(placement: .largeTitle) {
+					Text("Sessions").font(LHFont.title(34, relativeTo: .largeTitle)).foregroundStyle(LHColor.ink)
+						.frame(maxWidth: .infinity, alignment: .leading)
+						.accessibilityAddTraits(.isHeader)
+				}
 				ToolbarItem(placement: .topBarTrailing) {
-					Button { selection = .new } label: { Image(systemName: "square.and.pencil") }
+					Button { selection = .new } label: { Image(systemName: "plus") }
 						.accessibilityLabel("New session")
 						.disabled(offline)
 				}
@@ -104,6 +124,29 @@ struct SessionsView: View {
 				SessionView(chatId: id).id(id)
 			case nil:
 				ContentUnavailableView("Select a session", systemImage: "sidebar.left")
+			}
+		}
+		// Prose in Source Sans 3 wherever a session view doesn't set its own.
+		.font(LHFont.prose())
+	}
+
+	@ViewBuilder private func rows(_ list: [ChatListItem]) -> some View {
+		ForEach(list) { chat in
+			NavigationLink(value: SidebarSelection.chat(chat.id)) {
+				SessionRow(chat: chat)
+			}
+			.listRowBackground(LHColor.raised)
+			.swipeActions(edge: .trailing) {
+				// Not role: .destructive — that animates the row away before
+				// the confirmation, and the list then disagrees with the data.
+				Button("Delete", systemImage: "trash") { deleting = chat }
+					.tint(LHColor.error)
+				Button("Rename", systemImage: "pencil") { startRename(chat) }
+					.tint(.blue)
+			}
+			.contextMenu {
+				Button("Rename", systemImage: "pencil") { startRename(chat) }
+				Button("Delete", systemImage: "trash", role: .destructive) { deleting = chat }
 			}
 		}
 	}
@@ -209,22 +252,78 @@ private struct SessionRow: View {
 	let chat: ChatListItem
 
 	var body: some View {
-		VStack(alignment: .leading, spacing: 2) {
-			Text(chat.title).lineLimit(2)
-			HStack(spacing: 6) {
-				if chat.busy { ProgressView().controlSize(.mini) }
-				Text(subtitle).font(.caption).foregroundStyle(.secondary)
+		HStack(alignment: .firstTextBaseline, spacing: 10) {
+			Circle().fill(SessionListSections.waits(chat) ? LHColor.amber : .clear)
+				.frame(width: 7, height: 7)
+				.alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+				.accessibilityHidden(true)
+			VStack(alignment: .leading, spacing: 5) {
+				Text(chat.title)
+					.font(LHFont.title(17, relativeTo: .body))
+					.foregroundStyle(LHColor.ink)
+					.lineLimit(2)
+				HStack(spacing: 6) {
+					if chat.busy { ProgressView().controlSize(.mini) }
+					Text(status)
+						.lhLabel(10)
+						.foregroundStyle(SessionListSections.waits(chat) && !chat.busy ? LHColor.amber : LHColor.muted)
+						.lineLimit(1)
+				}
 			}
 		}
+		.padding(.vertical, 4)
+		.accessibilityElement(children: .combine)
 	}
 
-	private var subtitle: String {
+	private var status: String {
 		var parts = [chat.kind == .practice ? "Practice" : "Teaching"]
 		if chat.busy { parts.append("Working…") }
 		else if chat.compacting { parts.append("Compacting…") }
 		else if chat.pendingQuestion { parts.append("Question waiting") }
 		else if chat.pendingProblem { parts.append("Problem open") }
+		if let age = RelativeAge.label(updatedAt: chat.updatedAt) { parts.append(age) }
 		return parts.joined(separator: " · ")
+	}
+}
+
+/// A list section's mono header, with the count when given.
+private struct SectionHeader: View {
+	let title: String
+	var count: Int?
+
+	var body: some View {
+		HStack(spacing: 6) {
+			Text(title)
+			if let count { Text("\(count)").foregroundStyle(LHColor.amber) }
+		}
+		.lhLabel()
+		.foregroundStyle(LHColor.muted)
+	}
+}
+
+/// TEACHING / PRACTICE / ALL.
+private struct FilterBar: View {
+	@Binding var filter: SessionFilter
+
+	var body: some View {
+		HStack(spacing: 2) {
+			ForEach(SessionFilter.allCases, id: \.self) { option in
+				Button { filter = option } label: {
+					Text(option.title)
+						.lhLabel()
+						.foregroundStyle(filter == option ? LHColor.ink : LHColor.muted)
+						.frame(maxWidth: .infinity, minHeight: 36)
+						.background(RoundedRectangle(cornerRadius: 9).fill(filter == option ? LHColor.edge.opacity(0.6) : .clear))
+						.contentShape(Rectangle())
+				}
+				.buttonStyle(.plain)
+				.accessibilityAddTraits(filter == option ? .isSelected : [])
+			}
+		}
+		.padding(3)
+		.background(RoundedRectangle(cornerRadius: 12).fill(LHColor.raised))
+		.overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(LHColor.hairline))
+		.sensoryFeedback(.selection, trigger: filter)
 	}
 }
 

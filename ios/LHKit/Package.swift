@@ -25,7 +25,7 @@ let package = Package(
 				.product(name: "Markdown", package: "swift-markdown"),
 				.product(name: "SwiftMath", package: "SwiftMath"),
 			],
-			resources: [.copy("Resources/web")]
+			resources: [.copy("Resources/web"), .copy("Resources/Fonts")]
 		),
 		.testTarget(name: "LHAPITests", dependencies: ["LHAPI"]),
 		.testTarget(name: "LHCacheTests", dependencies: ["LHCache"]),

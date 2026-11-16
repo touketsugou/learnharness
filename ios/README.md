@@ -73,10 +73,15 @@ The app asks once for the **microphone** and **speech recognition** when you fir
 | `LearnHarness/Graph` | Graph canvas, node details, chains & sources, notes import |
 | `LearnHarness/Settings` | The Settings tab |
 | `LearnHarness/Input` | Attachments and dictation engines |
-| `LHKit/` | Local Swift package: `LHAPI` (HTTP, SSE, contract models, settings, graph geometry), `LHCache` (offline copies), `LHRender` (Markdown, LaTeX, web cards) |
+| `LHKit/` | Local Swift package: `LHAPI` (HTTP, SSE, contract models, settings, graph geometry), `LHCache` (offline copies), `LHRender` (Markdown, LaTeX, web cards, the theme in `Theme.swift`) |
+| `LHKit/Sources/LHRender/Resources/Fonts` | The desktop's three faces, registered at launch (`LHFonts.register()`), all under the SIL Open Font License (`OFL-*.txt`): CMU Serif Bold (copied from `../public/fonts`), JetBrains Mono and Source Sans 3 (variable fonts from github.com/google/fonts, `ofl/`) |
 | `Config/` | `Base.xcconfig`, `Local.example.xcconfig`, and the Debug-only ATS exception |
 | `scripts/vendor-web.sh` | Copies `mermaid.min.js` from `node_modules` into `LHRender` |
 | `../build/icon.icon` | The app icon: the desktop app's Icon Composer document, referenced rather than copied, so a design change updates both apps |
+
+## Look
+
+Dark only, in the desktop's palette (`LHColor`, from `app/globals.css`): CMU Serif for titles, JetBrains Mono for uppercase labels, Source Sans 3 for prose (`LHFont`). The confidence rail uses the desktop's ramp (`ConfidenceRamp`, from `components/confidence-rail.tsx`).
 
 ## Tests
 

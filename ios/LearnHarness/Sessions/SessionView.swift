@@ -1,5 +1,6 @@
 import CoreTransferable
 import LHAPI
+import LHRender
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -46,6 +47,7 @@ private struct SessionContent: View {
 	@State private var visibleHeight: CGFloat?
 	@State private var position = ScrollPosition()
 	@State private var atTop = false
+	@Environment(\.horizontalSizeClass) private var sizeClass
 
 	var body: some View {
 		ScrollViewReader { proxy in
@@ -81,18 +83,20 @@ private struct SessionContent: View {
 		.defaultScrollAnchor(.bottom, for: .sizeChanges)
 		.scrollDismissesKeyboard(.interactively)
 		.sensoryFeedback(.impact(weight: .light), trigger: model.turnCue)
-		// A question or problem takes at most half, so the transcript stays in view.
-		.safeAreaInset(edge: .bottom, spacing: 0) { SessionDock(model: model, maxHeight: visibleHeight.map { $0 / 2 }) }
+		// A dock takes at most part of the height (SessionDock), so the transcript stays in view.
+		.safeAreaInset(edge: .bottom, spacing: 0) { SessionDock(model: model, visibleHeight: visibleHeight) }
 		.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { visibleHeight = $0 }
+		.background(LHColor.bg)
 		.navigationTitle(model.state?.title ?? "")
 		.navigationBarTitleDisplayMode(.inline)
+		// iPhone: the session takes the whole height; the tabs come back on the list.
+		.toolbar(sizeClass == .compact ? .hidden : .automatic, for: .tabBar)
 		.toolbar {
+			ToolbarItem(placement: .principal) {
+				SessionTitle(model: model) { showPlan = true }
+			}
 			ToolbarItemGroup(placement: .topBarTrailing) {
 				ModelMenu(model: model)
-				if model.state?.plan != nil {
-					Button { showPlan = true } label: { Image(systemName: "map") }
-						.accessibilityLabel("Plan")
-				}
 				if let title = model.state?.title {
 					ShareLink(item: SessionMarkdown(title: title, load: model.markdownLoader), preview: SharePreview(title)) {
 						Image(systemName: "square.and.arrow.up")
@@ -102,6 +106,50 @@ private struct SessionContent: View {
 			}
 		}
 		.sheet(isPresented: $showPlan) { PlanSheet(model: model) }
+	}
+}
+
+/// The header's title button: the title (an amber dot while a question or
+/// problem waits) over the kind, phase or plan step. Opens the plan.
+private struct SessionTitle: View {
+	let model: SessionModel
+	let openPlan: () -> Void
+
+	var body: some View {
+		let state = model.state
+		let hasPlan = state?.plan != nil
+		Button { if hasPlan { openPlan() } } label: {
+			VStack(spacing: 3) {
+				HStack(spacing: 6) {
+					if waiting {
+						Circle().fill(LHColor.amber).frame(width: 7, height: 7).accessibilityHidden(true)
+					}
+					Text(state?.title ?? "")
+						.font(LHFont.title(17, relativeTo: .headline))
+						.foregroundStyle(LHColor.ink)
+						.lineLimit(1)
+				}
+				// Nothing until the session loads: its kind isn't known yet.
+				if let state {
+					HStack(spacing: 3) {
+						Text(PlanProgress.subtitle(kind: state.kind, phase: state.phase, plan: state.plan))
+						if hasPlan { Image(systemName: "chevron.right").font(.system(size: 8, weight: .semibold)) }
+					}
+					.lhLabel(10)
+					.foregroundStyle(LHColor.muted)
+				}
+			}
+			.frame(maxWidth: 240)
+		}
+		.buttonStyle(.plain)
+		.accessibilityHint(hasPlan ? "Shows the plan" : "")
+	}
+
+	private var waiting: Bool {
+		switch model.state?.dock {
+		case .question, .problem, .pluginQuestion: true
+		default: false
+		}
 	}
 }
 

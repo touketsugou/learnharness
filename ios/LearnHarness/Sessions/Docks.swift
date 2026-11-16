@@ -6,35 +6,40 @@ import SwiftUI
 /// practice problem, or the composer (web parity: a dock replaces the composer).
 struct SessionDock: View {
 	let model: SessionModel
-	/// The question and problem docks' height limit (nil: not measured yet).
-	/// Each takes its content's height up to it; its scrolling part gives way.
-	var maxHeight: CGFloat?
+	/// The transcript and dock's height (nil: not measured yet). Each dock
+	/// takes its content's height up to its share of it; its scrolling part
+	/// gives way.
+	var visibleHeight: CGFloat?
+
+	/// A question gets 60%: its options scroll between a header and pinned
+	/// answer controls. A problem or plugin question gets half.
+	private func limit(_ share: CGFloat) -> CGFloat? { visibleHeight.map { $0 * share } }
 
 	var body: some View {
 		VStack(spacing: 0) {
-			Divider()
+			Rectangle().fill(LHColor.hairline).frame(height: 1)
 			if !model.offline { DictationStatusRow() }
 			Group {
 				if model.offline {
 					Label("Offline — read-only copy", systemImage: "wifi.slash")
-						.font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(14)
+						.font(LHFont.prose(.callout)).foregroundStyle(LHColor.muted).frame(maxWidth: .infinity).padding(14)
 				} else {
 					switch model.state?.dock {
 					case .question(let dock):
 						QuestionDockView(model: model, dock: dock).id(dock.key)
-							.modifier(DockHeight(maxHeight: maxHeight))
+							.modifier(DockHeight(maxHeight: limit(0.6)))
 					case .problem(let problem):
 						PracticeDockView(model: model, problem: problem).id(problem.toolCallId)
-							.modifier(DockHeight(maxHeight: maxHeight))
+							.modifier(DockHeight(maxHeight: limit(0.5)))
 					case .pluginQuestion(let dock):
 						PluginQuestionDockView(model: model, dock: dock).id(dock.toolCallId)
-							.modifier(DockHeight(maxHeight: maxHeight))
+							.modifier(DockHeight(maxHeight: limit(0.5)))
 					default:
 						ComposerView(model: model, nextReady: model.state?.dock == .betweenProblems)
 					}
 				}
 			}
-			.background(.bar)
+			.background(LHColor.bg)
 		}
 	}
 }
@@ -67,37 +72,29 @@ struct ComposerView: View {
 		VStack(alignment: .leading, spacing: 8) {
 			if nextReady && !model.isRunning && !model.submitting {
 				Button { Task { await model.nextProblem() } } label: {
-					Label("Next problem", systemImage: "arrow.right")
+					HStack(spacing: 8) {
+						Text("Next problem")
+						Image(systemName: "arrow.right")
+					}
 				}
-				.buttonStyle(.bordered)
+				.buttonStyle(PrimaryButtonStyle())
 			}
-			HStack(alignment: .bottom, spacing: 6) {
+			HStack(alignment: .bottom, spacing: 8) {
 				AttachButton(text: $drafts.composer)
+					.modifier(CircleChrome())
 					.disabled(model.isCompacting)
-				TextField(placeholder, text: $drafts.composer, axis: .vertical)
-					.lineLimit(1...6)
-					.focused($focused)
-					.padding(.horizontal, 12)
-					.padding(.vertical, 9)
-					.background(RoundedRectangle(cornerRadius: 18).fill(Color(uiColor: .secondarySystemBackground)))
+				ComposerField(placeholder: placeholder, text: $drafts.composer, lines: 1...6, focused: $focused)
 					.disabled(model.isCompacting)
-				MicButton(text: $drafts.composer)
 				if model.isRunning && text.trimmingCharacters(in: .whitespaces).isEmpty {
-					Button { Task { await model.stopTurn() } } label: {
-						Image(systemName: "stop.circle.fill").font(.title)
-					}
-					.accessibilityLabel("Stop")
-					.tint(.red)
+					StopButton { Task { await model.stopTurn() } }
 				} else {
-					Button(action: send) {
-						Image(systemName: "arrow.up.circle.fill").font(.title)
-					}
-					.accessibilityLabel(model.isRunning ? "Send to the running turn" : "Send")
-					.disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.submitting || model.isCompacting)
+					SendButton(label: model.isRunning ? "Send to the running turn" : "Send",
+							   enabled: !(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.submitting || model.isCompacting),
+							   action: send)
 				}
 			}
 		}
-		.padding(.horizontal, 14)
+		.padding(.horizontal, 12)
 		.padding(.vertical, 10)
 	}
 
@@ -115,6 +112,157 @@ struct ComposerView: View {
 			model.drafts.composer = ""
 			await model.sendText(message)
 		}
+	}
+}
+
+// MARK: - Dock parts
+
+/// The message field: a raised capsule with the mic inside.
+struct ComposerField: View {
+	let placeholder: String
+	@Binding var text: String
+	var lines: ClosedRange<Int> = 1...6
+	var focused: FocusState<Bool>.Binding?
+
+	var body: some View {
+		HStack(alignment: .bottom, spacing: 4) {
+			field
+				.font(LHFont.prose(.body))
+				.lineLimit(lines)
+				.padding(.vertical, 11)
+				.padding(.leading, 16)
+			MicButton(text: $text)
+				.foregroundStyle(LHColor.muted)
+				.padding(.trailing, 6)
+				.padding(.bottom, 6)
+		}
+		.frame(minHeight: 44)
+		.background(RoundedRectangle(cornerRadius: 22).fill(LHColor.raised))
+		.overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(LHColor.hairline))
+	}
+
+	@ViewBuilder private var field: some View {
+		if let focused {
+			TextField(placeholder, text: $text, axis: .vertical).focused(focused)
+		} else {
+			TextField(placeholder, text: $text, axis: .vertical)
+		}
+	}
+}
+
+/// A multi-line answer box: raised, rounded 12, the mic in its corner.
+struct AnswerField: View {
+	let placeholder: String
+	@Binding var text: String
+	var lines: ClosedRange<Int> = 2...6
+
+	var body: some View {
+		HStack(alignment: .bottom, spacing: 4) {
+			TextField(placeholder, text: $text, axis: .vertical)
+				.font(LHFont.prose(.body))
+				.lineLimit(lines)
+				.padding(.vertical, 10)
+				.padding(.leading, 12)
+			MicButton(text: $text)
+				.foregroundStyle(LHColor.muted)
+				.padding(.trailing, 4)
+				.padding(.bottom, 4)
+		}
+		.background(RoundedRectangle(cornerRadius: 12).fill(LHColor.raised))
+		.overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(LHColor.hairline))
+	}
+}
+
+/// A 44 pt raised circle around an icon button.
+struct CircleChrome: ViewModifier {
+	func body(content: Content) -> some View {
+		content
+			.foregroundStyle(LHColor.ink)
+			.frame(width: 44, height: 44)
+			.background(Circle().fill(LHColor.raised))
+			.overlay(Circle().strokeBorder(LHColor.hairline))
+	}
+}
+
+struct SendButton: View {
+	let label: String
+	let enabled: Bool
+	let action: () -> Void
+
+	var body: some View {
+		Button(action: action) {
+			Image(systemName: "arrow.up")
+				.font(.system(size: 18, weight: .bold))
+				.foregroundStyle(enabled ? LHColor.bg : LHColor.muted)
+				.frame(width: 44, height: 44)
+				.background(Circle().fill(enabled ? LHColor.ink : LHColor.hairline))
+		}
+		.buttonStyle(.plain)
+		.disabled(!enabled)
+		.accessibilityLabel(label)
+	}
+}
+
+struct StopButton: View {
+	let action: () -> Void
+
+	var body: some View {
+		Button(action: action) {
+			Image(systemName: "stop.fill")
+				.font(.system(size: 15, weight: .bold))
+				.foregroundStyle(.white)
+				.frame(width: 44, height: 44)
+				.background(Circle().fill(LHColor.error))
+		}
+		.buttonStyle(.plain)
+		.accessibilityLabel("Stop")
+	}
+}
+
+/// The dock's main action: a full-width ink capsule; grey while disabled.
+struct PrimaryButtonStyle: ButtonStyle {
+	@Environment(\.isEnabled) private var isEnabled
+
+	func makeBody(configuration: Configuration) -> some View {
+		configuration.label
+			.font(LHFont.prose(.body).weight(.semibold))
+			.foregroundStyle(isEnabled ? LHColor.bg : LHColor.muted)
+			.frame(maxWidth: .infinity, minHeight: 44)
+			.background(Capsule().fill(isEnabled ? LHColor.ink : LHColor.hairline))
+			.opacity(configuration.isPressed ? 0.8 : 1)
+			.contentShape(Capsule())
+	}
+}
+
+/// A quiet text action in a dock's header (Skip, Discard).
+struct QuietButton: View {
+	let title: String
+	let action: () -> Void
+
+	var body: some View {
+		Button(title, action: action)
+			.font(LHFont.prose(.subheadline).weight(.medium))
+			.foregroundStyle(LHColor.muted)
+			.buttonStyle(.plain)
+			.frame(minWidth: 44, minHeight: 44)
+			.contentShape(Rectangle())
+	}
+}
+
+/// The collapse / expand chevron in a dock's header.
+struct DockChevron: View {
+	@Binding var expanded: Bool
+
+	var body: some View {
+		Button { withAnimation(.snappy) { expanded.toggle() } } label: {
+			Image(systemName: expanded ? "chevron.down" : "chevron.up")
+				.font(.system(size: 14, weight: .semibold))
+				.foregroundStyle(LHColor.muted)
+				.frame(width: 44, height: 44)
+				.contentShape(Rectangle())
+		}
+		.buttonStyle(.plain)
+		.accessibilityLabel(expanded ? "Collapse" : "Expand")
 	}
 }
 
@@ -177,18 +325,18 @@ struct QuestionDockView: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
 			if revealed {
-				// The label row stays put; the question beneath it scrolls.
-				VStack(alignment: .leading, spacing: 0) {
-					header.padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 12)
-					ScrollView {
-						form.padding(.horizontal, 14)
-							.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { formHeight = $0 }
-					}
-					.scrollBounceBehavior(.basedOnSize)
-					.frame(maxHeight: formHeight)
+				// The header and the answer controls stay put; the question and
+				// its options scroll between them, giving way first.
+				header.padding(.leading, 14).padding(.trailing, 4).padding(.top, 2)
+				ScrollView {
+					form.padding(.horizontal, 14).padding(.bottom, 10)
+						.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { formHeight = $0 }
 				}
-				.frame(maxHeight: expanded ? 460 : 120)
-				actions
+				.scrollBounceBehavior(.basedOnSize)
+				.frame(maxHeight: formHeight.map { min($0, expanded ? 460 : 120) } ?? (expanded ? 460 : 120))
+				pinned
+					.padding(.horizontal, 14).padding(.top, 6).padding(.bottom, 10)
+					.fixedSize(horizontal: false, vertical: true)
 			} else {
 				reveal
 			}
@@ -200,19 +348,13 @@ struct QuestionDockView: View {
 	// is captured here and rides the answer (or the skip).
 	private var reveal: some View {
 		VStack(alignment: .leading, spacing: 10) {
-			HStack(alignment: .bottom, spacing: 6) {
-				TextField("Your thinking while reading (optional)…", text: readingThinking, axis: .vertical)
-					.lineLimit(1...4)
-					.padding(10)
-					.background(RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .secondarySystemBackground)))
-				MicButton(text: readingThinking)
-			}
+			AnswerField(placeholder: "Your thinking while reading (optional)…", text: readingThinking, lines: 1...4)
 			Button {
 				model.drafts.revealedQuestions.insert(dock.key)
 			} label: {
-				Label("Check your understanding", systemImage: "play.fill").frame(maxWidth: .infinity)
+				Label("Check your understanding", systemImage: "play.fill")
 			}
-			.buttonStyle(.borderedProminent)
+			.buttonStyle(PrimaryButtonStyle())
 		}
 		.padding(14)
 	}
@@ -222,28 +364,26 @@ struct QuestionDockView: View {
 	}
 
 	private var header: some View {
-		HStack {
+		HStack(spacing: 0) {
 			CardLabel(text: label)
 			Spacer()
-			Button { withAnimation { expanded.toggle() } } label: {
-				Image(systemName: expanded ? "chevron.down" : "chevron.up")
-			}
-			.buttonStyle(.borderless)
-			.accessibilityLabel(expanded ? "Collapse" : "Expand")
+			QuietButton(title: "Skip") { Task { await model.dismissQuestion(dock) } }
+			DockChevron(expanded: $expanded)
 		}
 	}
 
 	@ViewBuilder private var form: some View {
 		let draft = draft
-		VStack(alignment: .leading, spacing: 12) {
+		VStack(alignment: .leading, spacing: 10) {
 			MarkdownView(dock.question).fontWeight(.medium)
 			if let context = dock.context, !context.isEmpty {
-				MarkdownView(context, textStyle: .callout).foregroundStyle(.secondary)
+				MarkdownView(context, textStyle: .callout).foregroundStyle(LHColor.muted)
 			}
 			if isSelect {
 				ForEach(Array(dock.options.enumerated()), id: \.offset) { index, option in
 					OptionRow(option: option, selected: draft.selected.contains(index), multi: dock.mode == .multiSelect) { toggle(index) }
 						.disabled(draft.dontKnow)
+						.opacity(draft.dontKnow ? 0.5 : 1)
 				}
 				if dock.kind == "ask" {
 					OptionRow(option: QuizOption(label: "Other…", value: "", description: nil), selected: draft.otherSelected, multi: dock.mode == .multiSelect) {
@@ -251,47 +391,36 @@ struct QuestionDockView: View {
 						if self.draft.otherSelected, dock.mode == .singleSelect { self.draft.selected.removeAll() }
 					}
 					if draft.otherSelected {
-						TextField("Type your own answer…", text: draftBinding.other, axis: .vertical).textFieldStyle(.roundedBorder)
+						AnswerField(placeholder: "Type your own answer…", text: draftBinding.other, lines: 1...4)
 					}
 				}
 				if isQuiz {
-					Toggle(isOn: Binding(get: { self.draft.dontKnow }, set: { on in
+					DontKnowRow(selected: draft.dontKnow) {
+						let on = !self.draft.dontKnow
 						self.draft.dontKnow = on
 						if on { self.draft.selected.removeAll(); self.draft.otherSelected = false }
-					})) {
-						Text("I don't know")
 					}
-					.toggleStyle(.button)
-					.buttonStyle(.bordered)
 				}
-				if isQuiz {
-					ConfidencePicker(stops: dock.confidenceStops, index: draftBinding.confidenceIndex, disabled: draft.dontKnow)
-				}
-				TextField("Your thinking (optional)…", text: draftBinding.thinking, axis: .vertical)
-					.lineLimit(2...6)
-					.padding(10)
-					.background(RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .secondarySystemBackground)))
-			} else {
-				TextField("Your answer…", text: draftBinding.answerText, axis: .vertical)
-					.lineLimit(3...10)
-					.padding(10)
-					.background(RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .secondarySystemBackground)))
 			}
 		}
 	}
 
-	private var actions: some View {
-		HStack {
-			Button("Skip", role: .destructive) { Task { await model.dismissQuestion(dock) } }
-				.buttonStyle(.bordered)
-			Spacer()
-			// The dictation target: the answer (text mode) or "Your thinking".
-			MicButton(text: isSelect ? draftBinding.thinking : draftBinding.answerText)
-			Button(action: submit) { Text("Submit").frame(minWidth: 90) }
-				.buttonStyle(.borderedProminent)
+	/// Below the scroll: confidence (quiz), the thinking or answer box, Submit.
+	@ViewBuilder private var pinned: some View {
+		let draft = draft
+		VStack(alignment: .leading, spacing: 8) {
+			if isSelect {
+				if isQuiz {
+					ConfidenceRail(stops: dock.confidenceStops, index: draftBinding.confidenceIndex, disabled: draft.dontKnow)
+				}
+				AnswerField(placeholder: "Your thinking (optional)…", text: draftBinding.thinking, lines: 1...4)
+			} else {
+				AnswerField(placeholder: "Your answer…", text: draftBinding.answerText, lines: 3...10)
+			}
+			Button("Submit", action: submit)
+				.buttonStyle(PrimaryButtonStyle())
 				.disabled(!canSubmit)
 		}
-		.padding(14)
 	}
 
 	private func toggle(_ index: Int) {
@@ -336,17 +465,19 @@ private struct OptionRow: View {
 		Button(action: action) {
 			HStack(alignment: .firstTextBaseline, spacing: 10) {
 				Image(systemName: multi ? (selected ? "checkmark.square.fill" : "square") : (selected ? "largecircle.fill.circle" : "circle"))
-					.foregroundStyle(selected ? Color.accentColor : .secondary)
+					.foregroundStyle(selected ? LHColor.ink : LHColor.muted)
 				VStack(alignment: .leading, spacing: 2) {
 					MarkdownView(option.label)
 					if let description = option.description, !description.isEmpty {
-						MarkdownView(description, textStyle: .footnote).foregroundStyle(.secondary)
+						MarkdownView(description, textStyle: .footnote).foregroundStyle(LHColor.muted)
 					}
 				}
 			}
-			.padding(10)
-			.frame(maxWidth: .infinity, alignment: .leading)
-			.background(RoundedRectangle(cornerRadius: 10).fill(selected ? Color.accentColor.opacity(0.1) : Color(uiColor: .secondarySystemBackground)))
+			.padding(.horizontal, 12)
+			.padding(.vertical, 11)
+			.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+			.background(RoundedRectangle(cornerRadius: 12).fill(LHColor.raised))
+			.overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? LHColor.ink : LHColor.hairline, lineWidth: selected ? 1.5 : 1))
 			.contentShape(Rectangle())
 		}
 		.buttonStyle(.plain)
@@ -354,24 +485,93 @@ private struct OptionRow: View {
 	}
 }
 
-/// The stated probability that the selection is correct, snapped to the stops.
-private struct ConfidencePicker: View {
+/// "I don't know": a dashed row under the options (quiz only).
+private struct DontKnowRow: View {
+	let selected: Bool
+	let action: () -> Void
+
+	var body: some View {
+		Button(action: action) {
+			HStack(spacing: 10) {
+				Image(systemName: selected ? "questionmark.circle.fill" : "questionmark.circle")
+				Text("I don't know").font(LHFont.prose(.body))
+			}
+			.foregroundStyle(selected ? LHColor.ink : LHColor.muted)
+			.padding(.horizontal, 12)
+			.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+			.overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? LHColor.ink : LHColor.edge, style: StrokeStyle(lineWidth: selected ? 1.5 : 1, dash: [4, 3])))
+			.contentShape(Rectangle())
+		}
+		.buttonStyle(.plain)
+		.accessibilityAddTraits(selected ? .isSelected : [])
+	}
+}
+
+/// The stated probability that the selection is correct: the desktop's rail
+/// (components/confidence-rail.tsx), snapped to the stops, coloured by value.
+struct ConfidenceRail: View {
 	let stops: [Int]
 	@Binding var index: Int
 	let disabled: Bool
 
+	private static let thumb: CGFloat = 22
+
+	private var value: Int { stops[safe: index] ?? 50 }
+	private var color: Color { disabled ? LHColor.edge : ConfidenceRamp.color(for: value) }
+
 	var body: some View {
-		VStack(alignment: .leading, spacing: 6) {
-			HStack {
-				CardLabel(text: "Confidence")
-				Spacer()
-				Text(disabled ? "—" : "\(stops[safe: index] ?? 50)%").font(.callout.monospacedDigit().weight(.semibold))
+		// One row: label, rail, value. The rail keeps a 44 pt touch height.
+		HStack(spacing: 12) {
+			CardLabel(text: "Confidence").fixedSize()
+			GeometryReader { geometry in
+				let width = geometry.size.width
+				let travel = width - Self.thumb
+				let x = { (stop: Int) in Self.thumb / 2 + travel * CGFloat(stop) / 100 }
+				ZStack(alignment: .leading) {
+					Capsule().fill(LHColor.raised)
+						.overlay(Capsule().strokeBorder(LHColor.hairline))
+						.frame(height: 8)
+					Capsule().fill(color)
+						.frame(width: max(8, x(value)), height: 8)
+					ForEach([30, 50, 70, 90], id: \.self) { tick in
+						Rectangle().fill(LHColor.ink.opacity(0.35))
+							.frame(width: 1.5, height: 8)
+							.offset(x: x(tick) - 0.75)
+					}
+					Circle().fill(color)
+						.overlay(Circle().strokeBorder(LHColor.bg, lineWidth: 2))
+						.frame(width: Self.thumb, height: Self.thumb)
+						.offset(x: x(value) - Self.thumb / 2)
+				}
+				.frame(height: 44)
+				.contentShape(Rectangle())
+				.gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+					guard !disabled, travel > 0 else { return }
+					let picked = Double(drag.location.x - Self.thumb / 2) / Double(travel) * 100
+					if let nearest = stops.indices.min(by: { abs(Double(stops[$0]) - picked) < abs(Double(stops[$1]) - picked) }), nearest != index {
+						index = nearest
+					}
+				})
 			}
-			Picker("Confidence", selection: $index) {
-				ForEach(Array(stops.enumerated()), id: \.offset) { offset, stop in Text("\(stop)").tag(offset) }
+			.frame(height: 44)
+			Text(disabled ? "—" : "\(value)%")
+				.font(LHFont.mono(.callout).weight(.semibold))
+				.monospacedDigit()
+				.foregroundStyle(disabled ? LHColor.muted : color)
+				.fixedSize()
+				.frame(minWidth: 44, alignment: .trailing)
+		}
+		.opacity(disabled ? 0.6 : 1)
+		.accessibilityElement(children: .ignore)
+		.accessibilityLabel("Confidence")
+		.accessibilityValue(disabled ? "Not applicable" : "\(value) percent")
+		.accessibilityAdjustableAction { direction in
+			guard !disabled else { return }
+			switch direction {
+			case .increment: index = min(index + 1, stops.count - 1)
+			case .decrement: index = max(index - 1, 0)
+			@unknown default: break
 			}
-			.pickerStyle(.segmented)
-			.disabled(disabled)
 		}
 	}
 }
@@ -382,7 +582,8 @@ struct PracticeDockView: View {
 	let model: SessionModel
 	let problem: NativeProblemDock
 	@Environment(AppModel.self) private var app
-	@State private var showStatement = true
+	/// Collapsed by default: the problem is in the transcript above.
+	@State private var showStatement = false
 	/// The statement's height: its scroll view grows no taller.
 	@State private var statementHeight: CGFloat?
 
@@ -392,63 +593,64 @@ struct PracticeDockView: View {
 	}
 
 	var body: some View {
-		if let plugin = problem.plugin {
-			pluginBody(plugin)
-		} else {
-			builtinBody
+		VStack(alignment: .leading, spacing: 8) {
+			header
+			statement
+			if let plugin = problem.plugin {
+				pluginControls(plugin)
+			} else {
+				builtinControls
+			}
+		}
+		.padding(.leading, 14).padding(.trailing, 14).padding(.top, 2).padding(.bottom, 12)
+	}
+
+	private var header: some View {
+		HStack(spacing: 0) {
+			let kind = problem.plugin.map { " · \($0.label)" } ?? ""
+			CardLabel(text: "Problem\(kind)\(problem.mode.map { " · \($0)" } ?? "")", systemImage: "puzzlepiece")
+			Spacer()
+			QuietButton(title: "Discard") { Task { await model.discardProblem(problem.toolCallId) } }
+			DockChevron(expanded: $showStatement).padding(.trailing, -10)
 		}
 	}
 
-	private var statement: some View {
-		DisclosureGroup(isExpanded: $showStatement) {
+	/// Expanded: the whole statement, scrolling past 220. Collapsed: its first
+	/// line as plain text, formulas as "…".
+	@ViewBuilder private var statement: some View {
+		if showStatement {
 			ScrollView {
 				MarkdownView(problem.statement ?? "").frame(maxWidth: .infinity, alignment: .leading)
 					.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { statementHeight = $0 }
 			}
 			.frame(maxHeight: min(220, statementHeight ?? 220))
-		} label: {
-			let kind = problem.plugin.map { " · \($0.label)" } ?? ""
-			CardLabel(text: "Problem\(kind)\(problem.mode.map { " · \($0)" } ?? "")", systemImage: "puzzlepiece")
+		} else {
+			Text(MarkdownPreview.oneLine(problem.statement ?? ""))
+				.font(LHFont.prose(.body))
+				.foregroundStyle(LHColor.muted)
+				.lineLimit(1)
+				.truncationMode(.tail)
+				.frame(maxWidth: .infinity, alignment: .leading)
 		}
-		.tint(.secondary)
 	}
 
 	/// A plugin's problem: its submission editor is plugin code, so it is
 	/// answered in the web app; here it can only be discarded.
-	private func pluginBody(_ plugin: NativePluginInfo) -> some View {
+	private func pluginControls(_ plugin: NativePluginInfo) -> some View {
 		VStack(alignment: .leading, spacing: 10) {
-			statement
-			Text("Answer this problem in the web app.").font(.callout).foregroundStyle(.secondary)
-			HStack {
-				Button("Discard", role: .destructive) { Task { await model.discardProblem(problem.toolCallId) } }
-					.buttonStyle(.bordered)
-				Spacer()
-				if model.isRunning {
-					Button { Task { await model.stopTurn() } } label: { Image(systemName: "stop.circle.fill") }
-						.tint(.red)
-				}
+			Text("Answer this problem in the web app.").font(LHFont.prose(.callout)).foregroundStyle(LHColor.muted)
+			HStack(spacing: 8) {
+				if model.isRunning { StopButton { Task { await model.stopTurn() } } }
 				OpenInBrowserButton(url: model.webURL)
 			}
 		}
-		.padding(14)
 	}
 
-	private var builtinBody: some View {
+	private var builtinControls: some View {
 		VStack(alignment: .leading, spacing: 10) {
-			statement
-			TextField("Your thinking or answer…", text: thinking, axis: .vertical)
-				.lineLimit(2...8)
-				.padding(10)
-				.background(RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .secondarySystemBackground)))
-			HStack {
-				Button("Discard", role: .destructive) { Task { await model.discardProblem(problem.toolCallId) } }
-					.buttonStyle(.bordered)
-				Spacer()
-				if model.isRunning {
-					Button { Task { await model.stopTurn() } } label: { Image(systemName: "stop.circle.fill") }
-						.tint(.red)
-				}
-				MicButton(text: thinking)
+			AnswerField(placeholder: "Your thinking or answer…", text: thinking, lines: 4...8)
+			HStack(spacing: 8) {
+				if model.isRunning { StopButton { Task { await model.stopTurn() } } }
 				Button("Submit") {
 					Task {
 						await app.dictation?.finish()
@@ -458,11 +660,10 @@ struct PracticeDockView: View {
 						await model.submitThinking(problemCallId: problem.toolCallId, text: text)
 					}
 				}
-				.buttonStyle(.borderedProminent)
+				.buttonStyle(PrimaryButtonStyle())
 				.disabled(thinking.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !model.canAct)
 			}
 		}
-		.padding(14)
 	}
 }
 
@@ -487,15 +688,14 @@ struct PluginQuestionDockView: View {
 						.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { questionHeight = $0 }
 				}
 				.frame(maxHeight: min(220, questionHeight ?? 220))
-				Text("Answer this question in the web app.").font(.callout).foregroundStyle(.secondary)
+				Text("Answer this question in the web app.").font(LHFont.prose(.callout)).foregroundStyle(LHColor.muted)
 			} else {
-				Text("Question unavailable").font(.callout).foregroundStyle(.secondary)
+				Text("Question unavailable").font(LHFont.prose(.callout)).foregroundStyle(LHColor.muted)
 			}
-			HStack {
-				Button("Dismiss Question", role: .destructive) { Task { await model.dismissPluginQuestion(dock) } }
-					.buttonStyle(.bordered)
+			HStack(spacing: 8) {
+				QuietButton(title: "Dismiss Question") { Task { await model.dismissPluginQuestion(dock) } }
 				Spacer()
-				if dock.available { OpenInBrowserButton(url: model.webURL) }
+				if dock.available { OpenInBrowserButton(url: model.webURL).fixedSize() }
 			}
 		}
 		.padding(14)
@@ -509,8 +709,8 @@ struct OpenInBrowserButton: View {
 	@Environment(\.openURL) private var openURL
 
 	var body: some View {
-		Button { openURL(url) } label: { Label("Open in Browser", systemImage: "arrow.up.right.square") }
-			.buttonStyle(.borderedProminent)
+		Button { openURL(url) } label: { Label("Open in Browser", systemImage: "arrow.up.right.square").padding(.horizontal, 16) }
+			.buttonStyle(PrimaryButtonStyle())
 	}
 }
 
