@@ -10,9 +10,13 @@ struct SessionDock: View {
 	/// takes its content's height up to its share of it; its scrolling part
 	/// gives way.
 	var visibleHeight: CGFloat?
+	/// The question dock's ceiling, as a share of the height: the learner drags
+	/// it (QuestionDockSize), and it holds for later questions.
+	@AppStorage(QuestionDockSize.key) private var questionShare = QuestionDockSize.defaultShare
 
-	/// A question gets 60%: its options scroll between a header and pinned
-	/// answer controls. A problem or plugin question gets half.
+	/// A question gets the learner's share (60% at first): its options scroll
+	/// between a header and pinned answer controls. A problem or plugin
+	/// question gets half.
 	private func limit(_ share: CGFloat) -> CGFloat? { visibleHeight.map { $0 * share } }
 
 	var body: some View {
@@ -26,8 +30,8 @@ struct SessionDock: View {
 				} else {
 					switch model.state?.dock {
 					case .question(let dock):
-						QuestionDockView(model: model, dock: dock).id(dock.key)
-							.modifier(DockHeight(maxHeight: limit(0.6)))
+						QuestionDockView(model: model, dock: dock, visibleHeight: visibleHeight, share: $questionShare).id(dock.key)
+							.modifier(DockHeight(maxHeight: limit(questionShare)))
 					case .problem(let problem):
 						PracticeDockView(model: model, problem: problem).id(problem.toolCallId)
 							.modifier(DockHeight(maxHeight: limit(0.5)))
@@ -268,14 +272,42 @@ struct DockChevron: View {
 
 // MARK: - Question dock
 
+/// The question dock's height ceiling, which the learner drags: a share of
+/// the height above the keyboard and tab bar, kept across questions.
+enum QuestionDockSize {
+	static let key = "questionDockShare"
+	static let defaultShare = 0.6
+	static let maxShare = 0.9
+	/// The question's least visible height (about two lines).
+	static let peek: CGFloat = 56
+
+	/// The share after moving the dock's top edge `drag` points down (negative:
+	/// up) from a dock `base` tall, kept between `minHeight` and 90%; `current`
+	/// while the height isn't measured.
+	static func share(_ current: Double, base: CGFloat, drag: CGFloat, minHeight: CGFloat, visibleHeight: CGFloat?) -> Double {
+		guard let visibleHeight, visibleHeight > 0 else { return current }
+		let maxHeight = visibleHeight * maxShare
+		let height = min(max(base - drag, min(minHeight, maxHeight)), maxHeight)
+		return Double(height / visibleHeight)
+	}
+}
+
 struct QuestionDockView: View {
 	let model: SessionModel
 	let dock: NativeQuestionDock
+	var visibleHeight: CGFloat?
+	/// The ceiling's share (SessionDock applies it); the handle sets it.
+	@Binding var share: Double
 	@Environment(AppModel.self) private var app
 
-	@State private var expanded = true
 	/// The form's height: the scroll view grows no taller.
 	@State private var formHeight: CGFloat?
+	/// The dock's and its scroll view's drawn heights, which a drag starts from.
+	@State private var dockHeight: CGFloat = 0
+	@State private var scrollHeight: CGFloat = 0
+	/// The dock's height when the current drag began.
+	@State private var dragBase: CGFloat?
+	@State private var resized = 0
 
 	/// This question's form, kept in the session's drafts.
 	private var draft: QuestionFormDraft {
@@ -326,14 +358,21 @@ struct QuestionDockView: View {
 		VStack(alignment: .leading, spacing: 0) {
 			if revealed {
 				// The header and the answer controls stay put; the question and
-				// its options scroll between them, giving way first.
-				header.padding(.leading, 14).padding(.trailing, 4).padding(.top, 2)
+				// its options scroll between them, giving way first. The handle
+				// and header drag the dock's height.
+				VStack(spacing: 0) {
+					handle
+					header.padding(.leading, 14).padding(.trailing, 4)
+				}
+				.contentShape(Rectangle())
+				.gesture(resize)
 				ScrollView {
 					form.padding(.horizontal, 14).padding(.bottom, 10)
 						.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { formHeight = $0 }
 				}
 				.scrollBounceBehavior(.basedOnSize)
-				.frame(maxHeight: formHeight.map { min($0, expanded ? 460 : 120) } ?? (expanded ? 460 : 120))
+				.frame(maxHeight: formHeight ?? 460)
+				.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { scrollHeight = $0 }
 				pinned
 					.padding(.horizontal, 14).padding(.top, 6).padding(.bottom, 10)
 					.fixedSize(horizontal: false, vertical: true)
@@ -341,7 +380,50 @@ struct QuestionDockView: View {
 				reveal
 			}
 		}
+		.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { dockHeight = $0 }
 		.sensoryFeedback(.selection, trigger: picks)
+		.sensoryFeedback(.impact(weight: .light), trigger: resized)
+	}
+
+	/// The least height: the header, a peek of the question, the pinned controls.
+	private var minHeight: CGFloat {
+		dockHeight - scrollHeight + min(QuestionDockSize.peek, formHeight ?? QuestionDockSize.peek)
+	}
+
+	/// Moving the top edge resizes from the height as drawn (a short question
+	/// sits below its ceiling). Global, as the dock moves under the finger.
+	private var resize: some Gesture {
+		DragGesture(minimumDistance: 4, coordinateSpace: .global)
+			.onChanged { value in
+				let base = dragBase ?? dockHeight
+				dragBase = base
+				share = QuestionDockSize.share(share, base: base, drag: value.translation.height, minHeight: minHeight, visibleHeight: visibleHeight)
+			}
+			.onEnded { _ in
+				dragBase = nil
+				resized += 1
+			}
+	}
+
+	private var handle: some View {
+		Capsule()
+			.fill(LHColor.edge)
+			.frame(width: 36, height: 5)
+			.frame(maxWidth: .infinity)
+			.frame(height: 20)
+			.accessibilityElement()
+			.accessibilityLabel("Question height")
+			.accessibilityValue("\(Int((share * 100).rounded()))%")
+			.accessibilityAdjustableAction { direction in
+				let step = (visibleHeight ?? 0) * 0.1
+				switch direction {
+				case .increment:
+					share = QuestionDockSize.share(share, base: CGFloat(share) * (visibleHeight ?? 0), drag: -step, minHeight: minHeight, visibleHeight: visibleHeight)
+				case .decrement:
+					share = QuestionDockSize.share(share, base: dockHeight, drag: step, minHeight: minHeight, visibleHeight: visibleHeight)
+				@unknown default: break
+				}
+			}
 	}
 
 	// The teach-phase check waits behind the reveal; thinking while reading
@@ -368,7 +450,6 @@ struct QuestionDockView: View {
 			CardLabel(text: label)
 			Spacer()
 			QuietButton(title: "Skip") { Task { await model.dismissQuestion(dock) } }
-			DockChevron(expanded: $expanded)
 		}
 	}
 

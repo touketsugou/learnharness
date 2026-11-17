@@ -81,7 +81,7 @@ The app asks once for the **microphone** and **speech recognition** when you fir
 
 ## Look
 
-Dark only, in the desktop's palette (`LHColor`, from `app/globals.css`): CMU Serif for titles, JetBrains Mono for uppercase labels, Source Sans 3 for prose (`LHFont`). The confidence rail uses the desktop's ramp (`ConfidenceRamp`, from `components/confidence-rail.tsx`).
+Dark only, in the desktop's palette (`LHColor`, from `app/globals.css`): CMU Serif for titles, JetBrains Mono for uppercase labels, Source Sans 3 for prose (`LHFont`). The confidence rail uses the desktop's ramp (`ConfidenceRamp`, from `components/confidence-rail.tsx`). The question dock fits its question up to a height the learner drags from its top edge (60% of the screen at first, at most 90%), kept on the device for later questions.
 
 ## Tests
 
