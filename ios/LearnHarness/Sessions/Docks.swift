@@ -30,8 +30,8 @@ struct SessionDock: View {
 				} else {
 					switch model.state?.dock {
 					case .question(let dock):
+						// Applies its own ceiling, which never hides its peek.
 						QuestionDockView(model: model, dock: dock, visibleHeight: visibleHeight, share: $questionShare).id(dock.key)
-							.modifier(DockHeight(maxHeight: limit(questionShare)))
 					case .problem(let problem):
 						PracticeDockView(model: model, problem: problem).id(problem.toolCallId)
 							.modifier(DockHeight(maxHeight: limit(0.5)))
@@ -290,6 +290,22 @@ enum QuestionDockSize {
 		let height = min(max(base - drag, min(minHeight, maxHeight)), maxHeight)
 		return Double(height / visibleHeight)
 	}
+
+	/// The dock's height ceiling: its share of the height, but never below
+	/// its least height (a share saved without the keyboard would otherwise
+	/// squeeze the question away above it), nor above the whole height.
+	static func ceiling(share: Double, minHeight: CGFloat, visibleHeight: CGFloat?) -> CGFloat? {
+		visibleHeight.map { min(max($0 * CGFloat(share), minHeight), $0) }
+	}
+
+	/// Whether the dock, now `height` tall, takes a finger step of `dy`
+	/// (down positive) rather than its content: up while it can grow, down
+	/// while it can shrink and the content is at its top (`atTop`).
+	static func consumes(dy: CGFloat, height: CGFloat, minHeight: CGFloat, maxHeight: CGFloat, atTop: Bool) -> Bool {
+		if dy < 0 { return height < maxHeight - 0.5 }
+		if dy > 0 { return atTop && height > minHeight + 0.5 }
+		return false
+	}
 }
 
 struct QuestionDockView: View {
@@ -305,9 +321,15 @@ struct QuestionDockView: View {
 	/// The dock's and its scroll view's drawn heights, which a drag starts from.
 	@State private var dockHeight: CGFloat = 0
 	@State private var scrollHeight: CGFloat = 0
-	/// The dock's height when the current drag began.
+	/// The dock's height when the current drag began, and how far the dock
+	/// has moved since (down positive), kept within its limits.
 	@State private var dragBase: CGFloat?
+	@State private var dragMoved: CGFloat = 0
+	/// The handle's last translation, to step it like a swipe.
+	@State private var handleTranslation: CGFloat = 0
 	@State private var resized = 0
+	/// Swipes on the content resize the dock first (DockScrollResize).
+	@State private var scrollLink = DockScrollLink()
 
 	/// This question's form, kept in the session's drafts.
 	private var draft: QuestionFormDraft {
@@ -365,10 +387,18 @@ struct QuestionDockView: View {
 					header.padding(.leading, 14).padding(.trailing, 4)
 				}
 				.contentShape(Rectangle())
-				.gesture(resize)
+				.gesture(handleDrag)
 				ScrollView {
 					form.padding(.horizontal, 14).padding(.bottom, 10)
 						.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { formHeight = $0 }
+						.background(
+							ScrollViewFinder(
+								link: scrollLink,
+								begin: beginResize,
+								resize: { dy, atTop in resize(by: dy, atTop: atTop, fitContent: true) },
+								end: endResize
+							)
+						)
 				}
 				.scrollBounceBehavior(.basedOnSize)
 				.frame(maxHeight: formHeight ?? 460)
@@ -383,6 +413,7 @@ struct QuestionDockView: View {
 		.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { dockHeight = $0 }
 		.sensoryFeedback(.selection, trigger: picks)
 		.sensoryFeedback(.impact(weight: .light), trigger: resized)
+		.modifier(DockHeight(maxHeight: QuestionDockSize.ceiling(share: share, minHeight: minHeight, visibleHeight: visibleHeight)))
 	}
 
 	/// The least height: the header, a peek of the question, the pinned controls.
@@ -390,19 +421,55 @@ struct QuestionDockView: View {
 		dockHeight - scrollHeight + min(QuestionDockSize.peek, formHeight ?? QuestionDockSize.peek)
 	}
 
-	/// Moving the top edge resizes from the height as drawn (a short question
-	/// sits below its ceiling). Global, as the dock moves under the finger.
-	private var resize: some Gesture {
+	/// The most a swipe on the content grows the dock: until all of it shows,
+	/// at most 90%.
+	private var fitHeight: CGFloat {
+		let fit = dockHeight - scrollHeight + (formHeight ?? scrollHeight)
+		return visibleHeight.map { min(fit, $0 * QuestionDockSize.maxShare) } ?? fit
+	}
+
+	/// A resize starts from the height as drawn (a short question sits below
+	/// its ceiling).
+	private func beginResize() {
+		dragBase = dockHeight
+		dragMoved = 0
+	}
+
+	/// Moves the dock's top edge by `dy` if the dock takes the step. The
+	/// handle may raise the ceiling past the content (`fitContent` false); a
+	/// swipe on the content grows the dock only until the content fits.
+	private func resize(by dy: CGFloat, atTop: Bool, fitContent: Bool) -> Bool {
+		guard let visibleHeight else { return false }
+		let base = dragBase ?? dockHeight
+		let maxHeight = fitContent ? fitHeight : visibleHeight * QuestionDockSize.maxShare
+		let height = base - dragMoved
+		guard QuestionDockSize.consumes(dy: dy, height: height, minHeight: minHeight, maxHeight: maxHeight, atTop: atTop) else { return false }
+		let next = min(max(height - dy, min(minHeight, maxHeight)), maxHeight)
+		dragMoved = base - next
+		share = QuestionDockSize.share(share, base: base, drag: dragMoved, minHeight: minHeight, visibleHeight: visibleHeight)
+		return true
+	}
+
+	private func endResize(_ didResize: Bool) {
+		dragBase = nil
+		dragMoved = 0
+		if didResize { resized += 1 }
+	}
+
+	/// The handle and header drag the top edge. Global, as the dock moves
+	/// under the finger.
+	private var handleDrag: some Gesture {
 		DragGesture(minimumDistance: 4, coordinateSpace: .global)
 			.onChanged { value in
-				let base = dragBase ?? dockHeight
-				dragBase = base
-				share = QuestionDockSize.share(share, base: base, drag: value.translation.height, minHeight: minHeight, visibleHeight: visibleHeight)
+				if dragBase == nil {
+					beginResize()
+					handleTranslation = 0
+				}
+				let dy = value.translation.height - handleTranslation
+				handleTranslation = value.translation.height
+				_ = resize(by: dy, atTop: true, fitContent: false)
 			}
-			.onEnded { _ in
-				dragBase = nil
-				resized += 1
-			}
+			.onEnded { _ in endResize(true) }
 	}
 
 	private var handle: some View {
