@@ -45,6 +45,7 @@ struct SessionDock: View {
 			}
 			.background(LHColor.bg)
 		}
+		.swipeDownDismissesKeyboard()
 	}
 }
 
@@ -362,6 +363,10 @@ struct QuestionDockView: View {
 	@State private var released = 0
 	/// Until then, the dock springs to the finger after the hold let go.
 	@State private var catchUpUntil: Date?
+	/// This swipe started down with the keyboard up: it only closes the
+	/// keyboard (swipeDownDismissesKeyboard), so the dock holds still. Nil
+	/// until the swipe's first step.
+	@State private var heldForKeyboard: Bool?
 	/// Swipes on the content resize the dock first (DockScrollResize).
 	@State private var scrollLink = DockScrollLink()
 
@@ -429,7 +434,7 @@ struct QuestionDockView: View {
 							ScrollViewFinder(
 								link: scrollLink,
 								begin: beginResize,
-								resize: { dy, atTop in resize(by: dy, atTop: atTop, fitContent: true) },
+								resize: { dy, atTop in holdsForKeyboard(dy) || resize(by: dy, atTop: atTop, fitContent: true) },
 								end: endResize
 							)
 						)
@@ -472,8 +477,16 @@ struct QuestionDockView: View {
 	private func beginResize() {
 		dragBase = dockHeight
 		dragMoved = 0
+		heldForKeyboard = nil
 		catchUpUntil = nil
 		holdPull = topHeight.flatMap { QuestionDockHold.holds(height: dockHeight, fitHeight: fitHeight, top: $0) ? 0 : nil }
+	}
+
+	/// Whether the dock holds still for this swipe step: the swipe's first
+	/// step decides, down with the keyboard up holding the whole swipe.
+	private func holdsForKeyboard(_ dy: CGFloat) -> Bool {
+		if heldForKeyboard == nil, dy != 0 { heldForKeyboard = dy > 0 && KeyboardState.shared.isVisible }
+		return heldForKeyboard == true
 	}
 
 	/// Moves the dock's top edge by `dy` if the dock takes the step. The
@@ -532,13 +545,14 @@ struct QuestionDockView: View {
 			withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
 				share = QuestionDockSize.share(share, base: visibleHeight * QuestionDockSize.maxShare, drag: 0, minHeight: minHeight, visibleHeight: visibleHeight)
 			}
-		} else if didResize {
+		} else if didResize && heldForKeyboard != true {
 			resized += 1
 		}
 		dragBase = nil
 		dragMoved = 0
 		holdPull = nil
 		catchUpUntil = nil
+		heldForKeyboard = nil
 	}
 
 	/// The handle and header drag the top edge. Global, as the dock moves
@@ -552,7 +566,7 @@ struct QuestionDockView: View {
 				}
 				let dy = value.translation.height - handleTranslation
 				handleTranslation = value.translation.height
-				_ = resize(by: dy, atTop: true, fitContent: false)
+				if !holdsForKeyboard(dy) { _ = resize(by: dy, atTop: true, fitContent: false) }
 			}
 			.onEnded { _ in endResize(true) }
 	}

@@ -65,6 +65,8 @@ struct NewSessionView: View {
 			.padding(.vertical, 10)
 			.frame(maxWidth: 820)
 			.overlay(alignment: .top) { Rectangle().fill(LHColor.hairline).frame(height: 1) }
+			.contentShape(Rectangle())
+			.swipeDownDismissesKeyboard()
 		}
 		.background(LHColor.bg)
 		.navigationTitle("")

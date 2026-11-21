@@ -9,6 +9,7 @@ struct LearnHarnessApp: App {
 	init() {
 		LHFonts.register()
 		LHFonts.styleNavigationBars()
+		KeyboardState.shared.start()
 	}
 
 	var body: some Scene {
