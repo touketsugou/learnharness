@@ -308,6 +308,32 @@ enum QuestionDockSize {
 	}
 }
 
+/// The question dock's hold at 90%: there, a swipe down pulls against it,
+/// the dock giving a third of the finger's travel, until 60 pt frees it.
+enum QuestionDockHold {
+	/// How far the finger pulls down before the hold lets go.
+	static let release: CGFloat = 60
+	/// The share of the pull the dock follows while held.
+	static let give: CGFloat = 1.0 / 3
+
+	/// Whether a dock `height` tall is held: it is at the top (90%), and its
+	/// content fills it there (`fitHeight`, the most it shows) rather than
+	/// the dock stopping short of it.
+	static func holds(height: CGFloat, fitHeight: CGFloat, top: CGFloat) -> Bool {
+		fitHeight >= top - 0.5 && height >= top - 0.5
+	}
+
+	/// The pull after a finger step `dy` (down positive), never below 0;
+	/// nil once it reaches `release`, which frees the dock.
+	static func pull(_ pull: CGFloat, step dy: CGFloat) -> CGFloat? {
+		let next = max(pull + dy, 0)
+		return next >= release ? nil : next
+	}
+
+	/// How far below the top a held dock shows under `pull`.
+	static func sag(_ pull: CGFloat) -> CGFloat { pull * give }
+}
+
 struct QuestionDockView: View {
 	let model: SessionModel
 	let dock: NativeQuestionDock
@@ -328,6 +354,14 @@ struct QuestionDockView: View {
 	/// The handle's last translation, to step it like a swipe.
 	@State private var handleTranslation: CGFloat = 0
 	@State private var resized = 0
+	/// How far this swipe pulls against the hold at 90% (QuestionDockHold);
+	/// nil while the dock is free.
+	@State private var holdPull: CGFloat?
+	/// The hold caught, and let go: each ticks a haptic.
+	@State private var held = 0
+	@State private var released = 0
+	/// Until then, the dock springs to the finger after the hold let go.
+	@State private var catchUpUntil: Date?
 	/// Swipes on the content resize the dock first (DockScrollResize).
 	@State private var scrollLink = DockScrollLink()
 
@@ -413,6 +447,8 @@ struct QuestionDockView: View {
 		.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { dockHeight = $0 }
 		.sensoryFeedback(.selection, trigger: picks)
 		.sensoryFeedback(.impact(weight: .light), trigger: resized)
+		.sensoryFeedback(.impact(weight: .medium), trigger: held)
+		.sensoryFeedback(.impact(weight: .medium), trigger: released)
 		.modifier(DockHeight(maxHeight: QuestionDockSize.ceiling(share: share, minHeight: minHeight, visibleHeight: visibleHeight)))
 	}
 
@@ -428,32 +464,81 @@ struct QuestionDockView: View {
 		return visibleHeight.map { min(fit, $0 * QuestionDockSize.maxShare) } ?? fit
 	}
 
+	/// The top: 90% of the height.
+	private var topHeight: CGFloat? { visibleHeight.map { $0 * QuestionDockSize.maxShare } }
+
 	/// A resize starts from the height as drawn (a short question sits below
-	/// its ceiling).
+	/// its ceiling), held if that is the top.
 	private func beginResize() {
 		dragBase = dockHeight
 		dragMoved = 0
+		catchUpUntil = nil
+		holdPull = topHeight.flatMap { QuestionDockHold.holds(height: dockHeight, fitHeight: fitHeight, top: $0) ? 0 : nil }
 	}
 
 	/// Moves the dock's top edge by `dy` if the dock takes the step. The
 	/// handle may raise the ceiling past the content (`fitContent` false); a
 	/// swipe on the content grows the dock only until the content fits.
 	private func resize(by dy: CGFloat, atTop: Bool, fitContent: Bool) -> Bool {
-		guard let visibleHeight else { return false }
+		guard let top = topHeight, dy != 0 else { return false }
 		let base = dragBase ?? dockHeight
-		let maxHeight = fitContent ? fitHeight : visibleHeight * QuestionDockSize.maxShare
+		let floor = min(minHeight, top)
+		if let pull = holdPull {
+			// Held: a pull down from the content's top stretches the dock a
+			// little, and back up undoes it; past the release it lets go and
+			// springs to the finger.
+			guard dy > 0 ? atTop : pull > 0 else { return false }
+			if let next = QuestionDockHold.pull(pull, step: dy) {
+				holdPull = next
+				show(max(top - QuestionDockHold.sag(next), floor), base: base)
+			} else {
+				holdPull = nil
+				released += 1
+				catchUpUntil = Date.now.addingTimeInterval(Self.catchUp)
+				withAnimation(Self.catchUpSpring) { show(max(top - (pull + dy), floor), base: base) }
+			}
+			return true
+		}
+		let maxHeight = fitContent ? fitHeight : top
 		let height = base - dragMoved
 		guard QuestionDockSize.consumes(dy: dy, height: height, minHeight: minHeight, maxHeight: maxHeight, atTop: atTop) else { return false }
 		let next = min(max(height - dy, min(minHeight, maxHeight)), maxHeight)
-		dragMoved = base - next
-		share = QuestionDockSize.share(share, base: base, drag: dragMoved, minHeight: minHeight, visibleHeight: visibleHeight)
+		if let until = catchUpUntil, Date.now < until {
+			withAnimation(Self.catchUpSpring) { show(next, base: base) }
+		} else {
+			show(next, base: base)
+		}
+		if QuestionDockHold.holds(height: next, fitHeight: fitHeight, top: top) {
+			holdPull = 0
+			held += 1
+		}
 		return true
 	}
 
+	/// How long, and how, the dock springs to the finger once the hold lets go.
+	private static let catchUp: TimeInterval = 0.2
+	private static let catchUpSpring = Animation.spring(duration: catchUp, bounce: 0.15)
+
+	/// Draws the dock `height` tall: its share, from the drag's `base`.
+	private func show(_ height: CGFloat, base: CGFloat) {
+		dragMoved = base - height
+		share = QuestionDockSize.share(share, base: base, drag: dragMoved, minHeight: minHeight, visibleHeight: visibleHeight)
+	}
+
+	/// A swipe let go while pulling against the hold springs the dock back to
+	/// the top, with no resize haptic: it stays where it was.
 	private func endResize(_ didResize: Bool) {
+		if let pull = holdPull, pull > 0, let visibleHeight {
+			withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
+				share = QuestionDockSize.share(share, base: visibleHeight * QuestionDockSize.maxShare, drag: 0, minHeight: minHeight, visibleHeight: visibleHeight)
+			}
+		} else if didResize {
+			resized += 1
+		}
 		dragBase = nil
 		dragMoved = 0
-		if didResize { resized += 1 }
+		holdPull = nil
+		catchUpUntil = nil
 	}
 
 	/// The handle and header drag the top edge. Global, as the dock moves

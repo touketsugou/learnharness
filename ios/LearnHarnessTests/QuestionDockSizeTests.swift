@@ -53,4 +53,26 @@ struct QuestionDockSizeTests {
 		#expect(QuestionDockSize.share(0.7, base: 400, drag: -100, minHeight: 200, visibleHeight: nil) == 0.7)
 		#expect(QuestionDockSize.share(0.7, base: 400, drag: -100, minHeight: 200, visibleHeight: 0) == 0.7)
 	}
+
+	@Test func theHoldCatchesOnlyAtTheTopWithContentToFillIt() {
+		#expect(QuestionDockHold.holds(height: 900, fitHeight: 900, top: 900))
+		#expect(!QuestionDockHold.holds(height: 850, fitHeight: 900, top: 900))
+		// A short question stops the dock below the top: nothing holds it.
+		#expect(!QuestionDockHold.holds(height: 900, fitHeight: 500, top: 900))
+	}
+
+	@Test func aPullGivesAThirdUntilItLetsGo() {
+		var pull: CGFloat? = 0
+		pull = QuestionDockHold.pull(pull!, step: 30)
+		#expect(pull == 30)
+		#expect(QuestionDockHold.sag(30) == 10)
+		pull = QuestionDockHold.pull(pull!, step: 29)
+		#expect(pull == 59)
+		#expect(QuestionDockHold.pull(59, step: 1) == nil)
+	}
+
+	@Test func pushingBackUpUndoesThePull() {
+		#expect(QuestionDockHold.pull(20, step: -15) == 5)
+		#expect(QuestionDockHold.pull(20, step: -40) == 0)
+	}
 }
