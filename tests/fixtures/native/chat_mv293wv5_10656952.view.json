@@ -18,7 +18,7 @@
 	"failure": null,
 	"usage": {
 		"contextTokens": 15303,
-		"cost": 0.001067412096,
+		"cost": 0.002526572,
 		"unpriced": 0
 	},
 	"settings": {

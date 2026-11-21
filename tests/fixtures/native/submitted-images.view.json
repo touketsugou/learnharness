@@ -85,7 +85,7 @@
 						"content": [
 							{
 								"type": "text",
-								"text": "{\"kind\":\"quiz\",\"answers\":[{\"index\":3,\"label\":\"Mercury\"}],\"correct\":true,\"confidence\":70}"
+								"text": "{\"kind\":\"quiz\",\"optionOrder\":{\"A\":3,\"B\":1,\"C\":2},\"answers\":[{\"index\":3,\"label\":\"Mercury\",\"letter\":\"C\"}],\"correct\":true,\"confidence\":70}"
 							},
 							{
 								"type": "text",
@@ -116,6 +116,11 @@
 									"label": "Mercury"
 								}
 							],
+							"optionOrder": {
+								"A": 3,
+								"B": 1,
+								"C": 2
+							},
 							"dontKnow": false,
 							"answers": [
 								{
@@ -162,6 +167,11 @@
 								"label": "Mercury"
 							}
 						],
+						"optionOrder": {
+							"A": 3,
+							"B": 1,
+							"C": 2
+						},
 						"dontKnow": false,
 						"answers": [
 							{
