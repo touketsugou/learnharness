@@ -47,6 +47,13 @@ final class SettingsModel {
 		Task { await load() }
 	}
 
+	/// Stops listening for server events (a short-lived copy, like the
+	/// Providers sheet's).
+	func stop() {
+		if let listener { app.events.unsubscribe(listener) }
+		listener = nil
+	}
+
 	func load() async {
 		async let catalog = try? client.modelCatalog()
 		do {

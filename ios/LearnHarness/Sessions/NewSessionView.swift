@@ -146,24 +146,27 @@ struct PracticeMaterialPicker: View {
 	var body: some View {
 		NavigationStack {
 			List {
-				ForEach(filteredGroups) { group in
-					Section {
-						ForEach(group.propositions) { proposition in
-							PropositionRow(proposition: proposition, isSelected: selected.contains(proposition.id)) {
-								toggle(proposition)
+				Group {
+					ForEach(filteredGroups) { group in
+						Section {
+							ForEach(group.propositions) { proposition in
+								PropositionRow(proposition: proposition, isSelected: selected.contains(proposition.id)) {
+									toggle(proposition)
+								}
 							}
-						}
-					} header: {
-						HStack {
-							Text(group.label)
-							Spacer()
-							let all = group.propositions.allSatisfy { selected.contains($0.id) }
-							Button(all ? "Deselect all" : "Select all") { setGroup(group, on: !all) }
-								.font(.caption)
-								.textCase(nil)
+						} header: {
+							HStack {
+								Text(group.label)
+								Spacer()
+								let all = group.propositions.allSatisfy { selected.contains($0.id) }
+								Button(all ? "Deselect all" : "Select all") { setGroup(group, on: !all) }
+									.font(LHFont.prose(.caption))
+									.textCase(nil)
+							}
 						}
 					}
 				}
+				.lhRows()
 			}
 			.searchable(text: $search, prompt: "Search propositions")
 			.overlay {
@@ -179,6 +182,8 @@ struct PracticeMaterialPicker: View {
 				}
 			}
 			.navigationTitle("Pick nodes")
+			.lhScreen()
+			.lhSheet()
 			.navigationBarTitleDisplayMode(.inline)
 			.toolbar {
 				ToolbarItem(placement: .cancellationAction) {
@@ -305,8 +310,8 @@ private struct PropositionRow: View {
 				Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
 					.foregroundStyle(isSelected ? Color.accentColor : .secondary)
 				VStack(alignment: .leading, spacing: 2) {
-					Text(proposition.name).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
-					Text(proposition.statement).font(.caption).foregroundStyle(.secondary).lineLimit(3)
+					Text(proposition.name).font(LHFont.prose(.subheadline).weight(.medium)).foregroundStyle(.primary)
+					Text(proposition.statement).font(LHFont.prose(.caption)).foregroundStyle(.secondary).lineLimit(3)
 				}
 			}
 			.contentShape(Rectangle())

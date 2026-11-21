@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// The graph section: extraction (the data channel), rendering (display
@@ -35,6 +36,7 @@ struct GraphSettingsView: View {
 			}
 		}
 		.navigationTitle("Graph")
+		.lhScreen()
 		.refreshable { await model.load() }
 		.onAppear { text = storedBudget.map(String.init) ?? "" }
 		.onChange(of: storedBudget) { if !focused { text = storedBudget.map(String.init) ?? "" } }

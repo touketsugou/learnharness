@@ -1,5 +1,6 @@
 import LHAPI
 import PhotosUI
+import LHRender
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -23,7 +24,7 @@ struct AttachButton: View {
 					Button("Photo Library", systemImage: "photo.on.rectangle") { showPhotos = true }
 					Button("Files", systemImage: "folder") { showFiles = true }
 				} label: {
-					Image(systemName: "paperclip").font(.title3).frame(width: 32, height: 32)
+					Image(systemName: "paperclip").font(LHFont.prose(.title3)).frame(width: 32, height: 32)
 				}
 				.accessibilityLabel("Attach files")
 			}

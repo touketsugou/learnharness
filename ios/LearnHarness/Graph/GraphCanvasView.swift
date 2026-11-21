@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// The read-only knowledge-graph canvas (web graph-canvas.ts, one draw pass
@@ -15,7 +16,6 @@ struct GraphCanvasView: View {
 	let request: CameraRequest
 	let onSelect: (String?) -> Void
 
-	@Environment(\.colorScheme) private var colorScheme
 	@State private var size: CGSize = .zero
 	/// The last automatic fit: while the camera still equals it, a resize
 	/// refits (the first layout can report an intermediate size).
@@ -44,7 +44,7 @@ struct GraphCanvasView: View {
 			guard let current = automatic ? (Self.fitted(scene.allBox, in: canvasSize) ?? camera) : camera else { return }
 			draw(&context, camera: current)
 		}
-		.background(Color(uiColor: .systemBackground))
+		.background(LHColor.bg)
 		.contentShape(Rectangle())
 		.gesture(pan.simultaneously(with: zoom))
 		.gesture(doubleTap.exclusively(before: tap))
@@ -182,8 +182,7 @@ struct GraphCanvasView: View {
 		//    alpha applied once when the layer composites.
 		if settings.regions.enabled, !scene.regions.isEmpty {
 			var regions = context
-			// Light backgrounds wash the tints out: a stronger alpha there.
-			regions.opacity = colorScheme == .dark ? settings.regions.edgeAlpha : min(settings.regions.edgeAlpha * 1.75, 1)
+			regions.opacity = settings.regions.edgeAlpha
 			regions.drawLayer { layer in
 				layer.addFilter(.blur(radius: min(settings.regions.blur * k, 240)))
 				let width = settings.regions.dilation * 2 * k
@@ -230,8 +229,8 @@ struct GraphCanvasView: View {
 					heads.closeSubpath()
 				}
 			}
-			context.stroke(shafts, with: .color(.secondary), style: StrokeStyle(lineWidth: max(settings.edgeWidth, 0.5), lineCap: .round))
-			context.fill(heads, with: .color(.secondary))
+			context.stroke(shafts, with: .color(LHColor.muted), style: StrokeStyle(lineWidth: max(settings.edgeWidth, 0.5), lineCap: .round))
+			context.fill(heads, with: .color(LHColor.muted))
 		}
 
 		// 3. Nodes (junctions are pure geometry: no disc).
@@ -243,21 +242,40 @@ struct GraphCanvasView: View {
 			discs.addEllipse(in: CGRect(x: c.x - radius, y: c.y - radius, width: radius * 2, height: radius * 2))
 			onScreen.append((node, c))
 		}
-		context.fill(discs, with: .color(.primary))
+		context.fill(discs, with: .color(LHColor.ink))
 
 		// 4. Node labels: one global zoom gate, world-scaled with the graph
-		//    (never below the phone minimum).
+		//    (never below the phone minimum). Labels never overlap: the
+		//    selection's is reserved first, then the busiest nodes (nearest
+		//    the middle on a tie) keep theirs and the rest are skipped.
 		let labelFont = max(settings.labelSize * k, Self.minLabelFont)
+		var placer = LabelPlacer()
+		var selection: (node: GraphScene.Node, at: CGPoint, label: GraphicsContext.ResolvedText, rect: CGRect)?
+		if let selectedID, let (node, c) = onScreen.first(where: { $0.0.id == selectedID }) {
+			let label = Self.resolveLabel(node.name, font: max(labelFont, 12), color: LHColor.ink, in: context)
+			let rect = Self.labelRect(label, at: c, radius: radius + 2, k: k)
+			_ = placer.place(rect)
+			selection = (node, c, label.text, rect)
+		}
 		if nodeAlpha > 0.01 {
 			var labels = context
 			labels.opacity = nodeAlpha
-			for (node, c) in onScreen where node.id != selectedID {
-				drawLabel(node.name, at: c, radius: radius, font: labelFont, k: k, color: .secondary, in: &labels)
+			let middle = CGPoint(x: size.width / 2, y: size.height / 2)
+			func distance(_ p: CGPoint) -> CGFloat { hypot(p.x - middle.x, p.y - middle.y) }
+			let ordered = onScreen.filter { $0.0.id != selectedID }.sorted { a, b in
+				a.0.degree != b.0.degree ? a.0.degree > b.0.degree : distance(a.1) < distance(b.1)
+			}
+			for (node, c) in ordered {
+				let label = Self.resolveLabel(node.name, font: labelFont, color: LHColor.muted, in: labels)
+				let rect = Self.labelRect(label, at: c, radius: radius, k: k)
+				guard rect.intersects(bounds), placer.place(rect) else { continue }
+				labels.draw(label.text, in: rect)
 			}
 		}
 
 		// 5. The selection: a soft halo in the node color, its name at full strength.
-		if let selectedID, let (node, c) = onScreen.first(where: { $0.0.id == selectedID }) {
+		if let selection {
+			let c = selection.at
 			let outer = radius * 1.7 + 6
 			context.fill(
 				Path(ellipseIn: CGRect(x: c.x - outer, y: c.y - outer, width: outer * 2, height: outer * 2)),
@@ -266,40 +284,56 @@ struct GraphCanvasView: View {
 			)
 			context.stroke(Path(ellipseIn: CGRect(x: c.x - radius - 2, y: c.y - radius - 2, width: radius * 2 + 4, height: radius * 2 + 4)),
 						   with: .color(.accentColor), lineWidth: 2)
-			drawLabel(node.name, at: c, radius: radius + 2, font: max(labelFont, 12), k: k, color: .primary, in: &context)
+			context.draw(selection.label, in: selection.rect)
 		}
 
 		// 6. Cluster labels: topmost, a constant screen size, fading in as
-		//    node labels fade out.
+		//    node labels fade out. Kept inside the screen, bigger clusters
+		//    first, never overlapping one another.
 		let regionAlpha = 1 - nodeAlpha
 		if settings.clusterLabels, regionAlpha > 0.01 {
 			var labels = context
 			labels.opacity = regionAlpha
-			let lightness = colorScheme == .dark ? 0.78 : 0.35
-			for region in scene.regions {
+			var clusterPlacer = LabelPlacer()
+			let inside = bounds.insetBy(dx: 8, dy: 8)
+			for region in scene.regions.sorted(by: { $0.size > $1.size }) {
 				guard let label = region.label, !label.isEmpty else { continue }
 				let c = screen(region.centroid)
 				guard bounds.insetBy(dx: -120, dy: -60).contains(c) else { continue }
 				let text = labels.resolve(
 					Text(label)
-						.font(.system(size: settings.clusterLabelSize, weight: .medium))
-						.foregroundStyle(Self.hsl(region.hue, 0.55, lightness).opacity(0.85))
+						.font(.custom(LHFonts.proseFamily, fixedSize: settings.clusterLabelSize).weight(.medium))
+						.foregroundStyle(Self.hsl(region.hue, 0.55, 0.78).opacity(0.85))
 				)
-				let measured = text.measure(in: CGSize(width: 220, height: settings.clusterLabelSize * 1.3 * 3))
-				labels.draw(text, in: CGRect(x: c.x - measured.width / 2, y: c.y - measured.height / 2, width: measured.width, height: measured.height))
+				let measured = text.measure(in: CGSize(width: min(220, inside.width), height: settings.clusterLabelSize * 1.3 * 3))
+				let rect = LabelPlacer.clamp(
+					CGRect(x: c.x - measured.width / 2, y: c.y - measured.height / 2, width: measured.width, height: measured.height),
+					into: inside
+				)
+				guard clusterPlacer.place(rect) else { continue }
+				labels.draw(text, in: rect)
 			}
 		}
 	}
 
-	private func drawLabel(_ name: String, at c: CGPoint, radius: Double, font: Double, k: Double, color: Color, in context: inout GraphicsContext) {
+	private struct ResolvedLabel {
+		let text: GraphicsContext.ResolvedText
+		let size: CGSize
+	}
+
+	private static func resolveLabel(_ name: String, font: Double, color: Color, in context: GraphicsContext) -> ResolvedLabel {
 		// The web wraps at 170 units for a 12-unit label: keep that ratio to the font.
 		let maxWidth = 170 * font / 12
 		let text = context.resolve(
-			Text(name).font(.system(size: font, weight: .medium)).foregroundStyle(color)
+			Text(name).font(.custom(LHFonts.proseFamily, fixedSize: font).weight(.medium)).foregroundStyle(color)
 		)
-		let measured = text.measure(in: CGSize(width: maxWidth, height: .greatestFiniteMagnitude))
+		return ResolvedLabel(text: text, size: text.measure(in: CGSize(width: maxWidth, height: .greatestFiniteMagnitude)))
+	}
+
+	/// Where a node's label sits: centered under its disc.
+	private static func labelRect(_ label: ResolvedLabel, at c: CGPoint, radius: Double, k: Double) -> CGRect {
 		let gap = max(2.9 * k, 2)
-		context.draw(text, in: CGRect(x: c.x - measured.width / 2, y: c.y + radius + gap, width: measured.width, height: measured.height))
+		return CGRect(x: c.x - label.size.width / 2, y: c.y + radius + gap, width: label.size.width, height: label.size.height)
 	}
 
 	/// HSL → SwiftUI color (the web's hsla region and label tints).

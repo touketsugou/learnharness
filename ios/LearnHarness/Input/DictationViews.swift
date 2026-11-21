@@ -1,3 +1,4 @@
+import LHRender
 import SwiftUI
 
 /// The mic: starts dictation into its field; while that run is live it
@@ -21,7 +22,7 @@ struct MicButton: View {
 					ProgressView().frame(width: 32, height: 32)
 				} else {
 					Image(systemName: mine ? "stop.circle.fill" : "mic")
-						.font(.title3)
+						.font(LHFont.prose(.title3))
 						.frame(width: 32, height: 32)
 				}
 			}
@@ -62,7 +63,7 @@ struct DictationStatusRow: View {
 					Button("Dismiss") { dictation.clearError() }.buttonStyle(.borderless)
 				}
 			}
-			.font(.caption)
+			.font(LHFont.prose(.caption))
 			.foregroundStyle(.secondary)
 			.frame(maxWidth: .infinity, alignment: .leading)
 			.padding(.horizontal, 14)

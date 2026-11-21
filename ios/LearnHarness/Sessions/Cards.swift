@@ -658,8 +658,8 @@ struct PlanSheet: View {
 		NavigationStack {
 			ScrollView {
 				if let plan = model.state?.plan {
-					MermaidView(source: PlanDiagram.mermaid(plan))
-						.padding()
+					MermaidView(source: PlanDiagram.mermaid(plan), style: PlanDiagram.style)
+						.padding(.vertical)
 				} else {
 					ContentUnavailableView("No plan yet", systemImage: "map")
 				}
@@ -667,7 +667,10 @@ struct PlanSheet: View {
 			.navigationTitle("Plan")
 			.navigationBarTitleDisplayMode(.inline)
 			.toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+			.lhScreen()
 		}
+		.presentationDetents([.medium, .large])
+		.lhSheet()
 	}
 }
 
@@ -705,8 +708,26 @@ enum PlanDiagram {
 		}
 	}
 
+	/// The web's plan look (components/plan-block.tsx) in the desktop
+	/// palette: dark boxes in the prose face at the reading size, wide plans
+	/// scrolling sideways.
+	static var style: MermaidStyle {
+		let size = Int(UIFont.preferredFont(forTextStyle: .body).pointSize.rounded())
+		return MermaidStyle(themeVariables: """
+		{ darkMode: true, background: '#141414', primaryColor: '#1C1C1C', primaryBorderColor: '#434343', \
+		primaryTextColor: '#E6E6E6', lineColor: '#8D8D8D', fontFamily: "'LH Prose', sans-serif", fontSize: '\(size)px' }
+		""", proseFont: true, naturalSize: true, css: glow, svgDefs: glowFilter)
+	}
+
+	/// The current step's amber glow, as page CSS: Mermaid's classDef refuses
+	/// the parentheses a filter needs, and WebKit draws no CSS drop-shadow()
+	/// inside an SVG, so the CSS points at an SVG filter (`glowFilter`).
+	static let glow = ".node.current rect, .node.current path, .node.current polygon { filter: url(#lh-glow); }"
+	static let glowFilter = ##"<filter id="lh-glow" x="-20%" y="-40%" width="140%" height="180%"><feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#EAB308"/></filter>"##
+
 	/// The live plan as a Mermaid flowchart (prerequisites point to dependants),
-	/// coloured by derived status like the web's plan popup.
+	/// styled by derived status like the web's plan popup: the current step
+	/// glows amber (`glow`), upcoming steps are dimmed.
 	static func mermaid(_ plan: NativePlan) -> String {
 		var ids: [String: String] = [:]
 		for (index, node) in plan.tree.nodes.enumerated() { ids[node.id] = "n\(index)" }
@@ -719,9 +740,9 @@ enum PlanDiagram {
 		for edge in plan.tree.edges {
 			if let from = ids[edge.from], let to = ids[edge.to] { lines.append("  \(from) --> \(to)") }
 		}
-		lines.append("  classDef current fill:#fde68a,stroke:#d97706,color:#111;")
-		lines.append("  classDef visited fill:#d1fae5,stroke:#059669,color:#111;")
-		lines.append("  classDef upcoming fill:#f3f4f6,stroke:#9ca3af,color:#111;")
+		lines.append("  classDef current fill:#1C1C1C,stroke:#8D8D8D,color:#E6E6E6,font-weight:600;")
+		lines.append("  classDef visited fill:#1C1C1C,stroke:#8D8D8D,color:#E6E6E6;")
+		lines.append("  classDef upcoming fill:#141414,stroke:#434343,color:#8D8D8D;")
 		return lines.joined(separator: "\n")
 	}
 }

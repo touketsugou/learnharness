@@ -8,6 +8,7 @@ struct LearnHarnessApp: App {
 
 	init() {
 		LHFonts.register()
+		LHFonts.styleNavigationBars()
 	}
 
 	var body: some Scene {
@@ -17,6 +18,7 @@ struct LearnHarnessApp: App {
 				// Dark only: the desktop's palette.
 				.preferredColorScheme(.dark)
 				.tint(LHColor.ink)
+				.font(LHFont.prose())
 				.background(LHColor.bg.ignoresSafeArea())
 		}
 		.onChange(of: scenePhase) { _, phase in model.sceneChanged(phase) }

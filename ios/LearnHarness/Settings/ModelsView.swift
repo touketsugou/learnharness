@@ -1,13 +1,15 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// The three model slots (PUT /api/settings/models), the compaction
 /// threshold, and per-slot cache retention. A slot shows its override, else
-/// the resolved factory pin; the stored id stays visible even when its
-/// provider's key lapsed out of the catalog.
+/// the resolved factory pin; either reads "No key" when its provider has no
+/// key (the model is not in the catalog).
 struct ModelsView: View {
 	let model: SettingsModel
 	@State private var connecting: SubscriptionProvider?
+	@State private var addingKey = false
 
 	private static let allLevels = ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
 
@@ -22,7 +24,7 @@ struct ModelsView: View {
 							Task { await model.write("models", ModelsCompose.slot(model.section("models"), slot, provider: entry.provider, id: entry.id, thinking: thinking)) }
 						}
 					} label: {
-						LabeledContent("Model", value: state.coordinate.map { prettyModelName($0.id) } ?? "—")
+						LabeledContent("Model", value: state.modelLabel)
 					}
 					Menu {
 						ForEach(state.levels, id: \.self) { level in
@@ -47,7 +49,11 @@ struct ModelsView: View {
 				}
 			}
 			if model.catalog?.models.isEmpty == true {
-				Text("No models — add a provider key in Providers").foregroundStyle(.secondary)
+				Section {
+					AddProviderKeyButton { addingKey = true }
+				} footer: {
+					Text("No models yet: models come from your provider keys.")
+				}
 			}
 			CompactionSection(model: model)
 			Section {
@@ -75,6 +81,7 @@ struct ModelsView: View {
 			}
 		}
 		.navigationTitle("Models")
+		.lhScreen()
 		.refreshable { await model.load() }
 		.task {
 			await model.reloadCatalog()
@@ -83,6 +90,8 @@ struct ModelsView: View {
 		.sheet(item: $connecting) { provider in
 			SubscriptionSheet(model: model, provider: provider)
 		}
+		// A key added there brings its models into the catalog.
+		.sheet(isPresented: $addingKey, onDismiss: { Task { await model.reloadCatalog() } }) { ProvidersSheet() }
 	}
 
 	private struct SlotState {
@@ -92,6 +101,13 @@ struct ModelsView: View {
 		var coordinate: ChatModelChoice?
 		var levels: [String]
 		var shownThinking: String?
+		/// The slot's model (its own or the default) has no catalog entry: its provider has no key.
+		var missingKey: Bool
+
+		var modelLabel: String {
+			guard let coordinate else { return "—" }
+			return missingKey ? "No key" : prettyModelName(coordinate.id)
+		}
 	}
 
 	private func slotState(_ slot: ModelSlot) -> SlotState {
@@ -104,7 +120,8 @@ struct ModelsView: View {
 		let chosen = model.catalog?.entry(coordinate?.provider, coordinate?.id)
 		let levels = chosen?.supportedLevels ?? Self.allLevels
 		let shown = !thinking.isEmpty ? thinking : chosen.map { ThinkingLevels.defaultLevel($0.supportedLevels) }
-		return SlotState(provider: provider, modelId: modelId, thinking: thinking, coordinate: coordinate, levels: levels, shownThinking: shown)
+		let missingKey = model.catalog != nil && coordinate != nil && chosen == nil
+		return SlotState(provider: provider, modelId: modelId, thinking: thinking, coordinate: coordinate, levels: levels, shownThinking: shown, missingKey: missingKey)
 	}
 }
 
@@ -186,11 +203,11 @@ private struct SlotModelPicker: View {
 									VStack(alignment: .leading, spacing: 2) {
 										Text(entry.name)
 										if entry.name != entry.id {
-											Text(entry.id).font(.caption.monospaced()).foregroundStyle(.secondary)
+											Text(entry.id).font(LHFont.mono(.caption)).foregroundStyle(.secondary)
 										}
 									}
 									Spacer()
-									Text(entry.priceLabel).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+									Text(entry.priceLabel).font(LHFont.prose(.caption)).monospacedDigit().foregroundStyle(.secondary)
 									if entry.provider == current?.provider, entry.id == current?.id {
 										Image(systemName: "checkmark").foregroundStyle(.tint)
 									}
@@ -211,6 +228,7 @@ private struct SlotModelPicker: View {
 		}
 		.searchable(text: $query, prompt: "Search models")
 		.navigationTitle("\(slot.label) Model")
+		.lhScreen()
 		.navigationBarTitleDisplayMode(.inline)
 	}
 

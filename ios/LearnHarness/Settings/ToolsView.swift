@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// The agent's tools (web Agent → Tools): graph tools, the quizzing
@@ -36,6 +37,7 @@ struct ToolsView: View {
 			fileAccessSection
 		}
 		.navigationTitle("Tools")
+		.lhScreen()
 		.refreshable { await model.load() }
 		.task {
 			await model.reloadSearch()
@@ -86,7 +88,7 @@ struct ToolsView: View {
 		Section {
 			Toggle("Restrict to listed folders", isOn: Binding(get: { restricted }, set: { write(AgentCompose.fileRestriction(effective, restricted: $0)) }))
 			ForEach(folders, id: \.self) { folder in
-				Text(folder).font(.footnote.monospaced())
+				Text(folder).font(LHFont.mono(.footnote))
 					.swipeActions {
 						Button("Remove", role: .destructive) { write(AgentCompose.removeFolder(effective, folder)) }
 					}
@@ -95,7 +97,7 @@ struct ToolsView: View {
 				TextField("Absolute path or ~/folder", text: $folderInput)
 					.textInputAutocapitalization(.never)
 					.autocorrectionDisabled()
-					.font(.footnote.monospaced())
+					.font(LHFont.mono(.footnote))
 					.onSubmit { addFolder(effective, folders: folders) }
 					.onChange(of: folderInput) { folderError = nil }
 				Button("Add") { addFolder(effective, folders: folders) }

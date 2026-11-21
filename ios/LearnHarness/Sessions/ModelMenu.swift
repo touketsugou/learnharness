@@ -3,8 +3,11 @@ import SwiftUI
 
 /// The session's own model and thinking level (web ModelControl, chat
 /// mode): writes PUT /api/chats/:id/settings; the server clamps the level.
+/// With no models (no provider key), it offers "Add a provider key".
 struct ModelMenu: View {
 	let model: SessionModel
+	/// No models: opens Providers to add a key (a menu item can't present).
+	let addProviderKey: () -> Void
 
 	var body: some View {
 		Menu {
@@ -33,7 +36,7 @@ struct ModelMenu: View {
 					}
 				}
 			} else {
-				Text("No models configured")
+				AddProviderKeyButton(action: addProviderKey)
 			}
 		} label: {
 			Label(model.effectiveModel.map { prettyModelName($0.id) } ?? "Model", systemImage: "cpu")

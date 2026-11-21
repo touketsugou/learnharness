@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// System prompts: Teacher, Prober, Practice, then Shared. A row's switch
@@ -41,6 +42,7 @@ struct PromptsView: View {
 			}
 		}
 		.navigationTitle("Prompts")
+		.lhScreen()
 		.refreshable { await store?.reload() }
 		.task {
 			if store == nil { store = PromptStore(client: model.client) }
@@ -108,19 +110,19 @@ private struct PromptDetailView: View {
 				Section {
 					DisclosureGroup("Original", isExpanded: $showOriginal) {
 						Text(segment.sourceText)
-							.font(.footnote)
+							.font(LHFont.prose(.footnote))
 							.foregroundStyle(.secondary)
 							.textSelection(.enabled)
 					}
 				}
 				Section {
 					TextEditor(text: $text)
-						.font(.footnote)
+						.font(LHFont.prose(.footnote))
 						.frame(minHeight: 320)
 						.overlay(alignment: .topLeading) {
 							if text.isEmpty {
 								Text("Add your own instructions…")
-									.font(.footnote)
+									.font(LHFont.prose(.footnote))
 									.foregroundStyle(.tertiary)
 									.padding(.top, 8)
 									.padding(.leading, 5)
@@ -143,6 +145,7 @@ private struct PromptDetailView: View {
 			}
 		}
 		.navigationTitle((path as NSString).lastPathComponent)
+		.lhScreen()
 		.navigationBarTitleDisplayMode(.inline)
 		.onChange(of: segment?.overrideText, initial: true) { text = segment?.overrideText ?? "" }
 		.toolbar {

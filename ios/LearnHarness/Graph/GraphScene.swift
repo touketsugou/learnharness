@@ -12,6 +12,8 @@ struct GraphScene {
 		let point: Point
 		/// A multi-premise chain's junction: drawn as pure geometry, never picked.
 		let isJunction: Bool
+		/// Links in and out (the label priority: busier nodes keep their names).
+		let degree: Int
 	}
 
 	struct Edge {
@@ -30,6 +32,8 @@ struct GraphScene {
 		let hue: Double
 		let label: String?
 		let centroid: Point
+		/// Visible members (the cluster-label priority: bigger clusters first).
+		let size: Int
 		let segments: [(Point, Point)]
 		let spots: [Point]
 	}
@@ -47,12 +51,17 @@ struct GraphScene {
 		let positions = snapshot.positions
 		func point(_ id: String) -> Point? { positions[id].map { Point(x: $0.x, y: $0.y) } }
 
+		var degree: [String: Int] = [:]
+		for edge in snapshot.edges {
+			degree[edge.from, default: 0] += 1
+			degree[edge.to, default: 0] += 1
+		}
 		var visible = Set<String>()
 		var nodes: [Node] = []
 		for node in snapshot.nodes {
 			guard GraphGeometry.matches(name: node.name, statement: node.statement, query: query), let at = point(node.id) else { continue }
 			visible.insert(node.id)
-			nodes.append(Node(id: node.id, name: node.name, point: at, isJunction: GraphSnapshot.isImplication(node.id)))
+			nodes.append(Node(id: node.id, name: node.name, point: at, isJunction: GraphSnapshot.isImplication(node.id), degree: degree[node.id] ?? 0))
 		}
 		self.nodes = nodes
 
@@ -83,7 +92,7 @@ struct GraphScene {
 				y: members.map(\.1.y).reduce(0, +) / Double(members.count)
 			)
 			regions.append(Region(id: cluster.id, hue: GraphGeometry.clusterHue(cluster.id), label: cluster.label,
-								  centroid: centroid, segments: segments, spots: spots))
+								  centroid: centroid, size: members.count, segments: segments, spots: spots))
 		}
 		self.regions = regions
 

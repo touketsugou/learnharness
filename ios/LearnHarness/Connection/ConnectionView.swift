@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// First launch, after sign-out, and after the server rejects the saved
@@ -61,6 +62,7 @@ struct ConnectionView: View {
 				}
 			}
 			.navigationTitle("LearnHarness")
+			.lhScreen()
 			.confirmationDialog("Sign out of this server?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
 				Button("Sign Out", role: .destructive) { Task { await model.signOut() } }
 			}

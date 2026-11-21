@@ -83,6 +83,8 @@ The app asks once for the **microphone** and **speech recognition** when you fir
 
 Dark only, in the desktop's palette (`LHColor`, from `app/globals.css`): CMU Serif for titles, JetBrains Mono for uppercase labels, Source Sans 3 for prose (`LHFont`). The confidence rail uses the desktop's ramp (`ConfidenceRamp`, from `components/confidence-rail.tsx`). The question dock fits its question up to a height the learner sets (60% of the screen at first, at most 90%), kept on the device for later questions: drag its top edge, or swipe the question itself, which grows the dock before it scrolls and shrinks it once scrolled back to the top. At 90% the dock holds: a pull down gives only a third of the finger's travel and springs back if let go, until 60 pt frees it to follow the finger again.
 
+Every page and sheet uses that palette and those faces. The graph's labels never overlap: the selected node's name comes first, then the most-linked nodes' (zoom in to see more), and cluster names stay on screen. The plan sheet draws the plan as the web does, in dark boxes with the current step glowing amber.
+
 ## Tests
 
 ```bash

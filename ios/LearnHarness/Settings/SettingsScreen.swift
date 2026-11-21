@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// The Settings tab: seven pages. Server is always reachable (signing out
@@ -23,6 +24,7 @@ struct SettingsScreen: View {
 				}
 			}
 			.navigationTitle("Settings")
+			.lhScreen()
 		}
 		.task {
 			guard model == nil, let client = app.client else { return }
@@ -38,6 +40,8 @@ struct SettingsScreen: View {
 				SettingsPage(model: model) { destination(model) }
 			} else {
 				ProgressView()
+					.frame(maxWidth: .infinity, maxHeight: .infinity)
+					.background(LHColor.bg)
 			}
 		} label: {
 			Label(title, systemImage: systemImage)
@@ -68,6 +72,9 @@ private struct SettingsPage<Content: View>: View {
 				ProgressView()
 			}
 		}
+		// The loading and error states too, not only the pages' lists.
+		.frame(maxWidth: .infinity, maxHeight: .infinity)
+		.background(LHColor.bg)
 		.alert("Couldn’t save", isPresented: Binding(get: { model.writeError != nil }, set: { if !$0 { model.writeError = nil } })) {
 			Button("OK", role: .cancel) {}
 		} message: {
@@ -85,7 +92,7 @@ struct SettingLabel: View {
 		VStack(alignment: .leading, spacing: 2) {
 			Text(title)
 			if let hint, !hint.isEmpty {
-				Text(hint).font(.footnote).foregroundStyle(.secondary)
+				Text(hint).font(LHFont.prose(.footnote)).foregroundStyle(.secondary)
 			}
 		}
 	}

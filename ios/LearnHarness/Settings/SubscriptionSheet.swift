@@ -1,5 +1,6 @@
 import LHAPI
 import SafariServices
+import LHRender
 import SwiftUI
 import UIKit
 
@@ -32,39 +33,44 @@ struct SubscriptionSheet: View {
 	var body: some View {
 		NavigationStack {
 			Form {
-				if confirmDisconnect {
-					Section {
-						Text("Disconnect \(provider.label)?").font(.headline).foregroundStyle(.red)
-						Text(provider.disconnectCopy).font(.footnote).foregroundStyle(.secondary)
-					}
-				} else if stage == .notice {
-					Section {
-						Text(provider.notice).font(.footnote).foregroundStyle(.secondary)
-						if provider.providerId == "github-copilot" {
-							Text(SubscriptionProvider.copilotPolicyNotice).font(.footnote).foregroundStyle(.secondary)
+				Group {
+					if confirmDisconnect {
+						Section {
+							Text("Disconnect \(provider.label)?").font(LHFont.prose(.headline).weight(.semibold)).foregroundStyle(.red)
+							Text(provider.disconnectCopy).font(LHFont.prose(.footnote)).foregroundStyle(.secondary)
+						}
+					} else if stage == .notice {
+						Section {
+							Text(provider.notice).font(LHFont.prose(.footnote)).foregroundStyle(.secondary)
+							if provider.providerId == "github-copilot" {
+								Text(SubscriptionProvider.copilotPolicyNotice).font(LHFont.prose(.footnote)).foregroundStyle(.secondary)
+							}
+						}
+					} else {
+						Section {
+							Toggle(isOn: Binding(get: { managing ? status.allowBackgroundUse : background }, set: setBackground)) {
+								SettingLabel(title: "Allow background use", hint: SubscriptionProvider.backgroundHint)
+							}
+							.disabled(busy || signingIn || status.pending || !status.available)
+						} footer: {
+							if !status.available {
+								Text("Subscription sign-in isn’t available on this server. API-key connections remain available.")
+							}
+						}
+						if stage == .connection, let interaction = status.interaction {
+							interactionSection(interaction)
 						}
 					}
-				} else {
-					Section {
-						Toggle(isOn: Binding(get: { managing ? status.allowBackgroundUse : background }, set: setBackground)) {
-							SettingLabel(title: "Allow background use", hint: SubscriptionProvider.backgroundHint)
-						}
-						.disabled(busy || signingIn || status.pending || !status.available)
-					} footer: {
-						if !status.available {
-							Text("Subscription sign-in isn’t available on this server. API-key connections remain available.")
-						}
+					if let message = error ?? status.error {
+						Section { Text(message).font(LHFont.prose(.footnote)).foregroundStyle(.red) }
 					}
-					if stage == .connection, let interaction = status.interaction {
-						interactionSection(interaction)
-					}
+					actions
 				}
-				if let message = error ?? status.error {
-					Section { Text(message).font(.footnote).foregroundStyle(.red) }
-				}
-				actions
+				.lhRows()
 			}
 			.navigationTitle(provider.label)
+			.lhScreen()
+			.lhSheet()
 			.navigationBarTitleDisplayMode(.inline)
 			.toolbar {
 				ToolbarItem(placement: .cancellationAction) {
@@ -89,7 +95,7 @@ struct SubscriptionSheet: View {
 	@ViewBuilder private func interactionSection(_ interaction: SubscriptionInteraction) -> some View {
 		Section {
 			if let progress = interaction.progress {
-				Text(progress).font(.footnote).foregroundStyle(.secondary)
+				Text(progress).font(LHFont.prose(.footnote)).foregroundStyle(.secondary)
 			}
 			if let code = interaction.userCode {
 				LabeledContent("Device code") {
@@ -98,7 +104,7 @@ struct SubscriptionSheet: View {
 						copied = true
 					} label: {
 						Label(code, systemImage: copied ? "checkmark" : "doc.on.doc")
-							.font(.body.monospaced())
+							.font(LHFont.mono(.body))
 					}
 				}
 			}
@@ -118,7 +124,7 @@ struct SubscriptionSheet: View {
 
 	@ViewBuilder private func promptField(_ prompt: SubscriptionPrompt, attemptId: String) -> some View {
 		VStack(alignment: .leading, spacing: 8) {
-			Text(prompt.message).font(.footnote)
+			Text(prompt.message).font(LHFont.prose(.footnote))
 			if prompt.type == "select" {
 				Picker("Choose", selection: $promptValue) {
 					Text("Select…").tag("")

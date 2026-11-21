@@ -97,3 +97,37 @@ extension View {
 		font(LHFont.label(size)).tracking(LHFont.labelTracking(size)).textCase(.uppercase)
 	}
 }
+
+extension View {
+	/// A page in the desktop's look: the palette's background behind lists
+	/// and forms instead of the system black.
+	public func lhScreen() -> some View {
+		scrollContentBackground(.hidden).background(LHColor.bg)
+	}
+
+	/// List rows in the palette's raised color. A sheet would otherwise
+	/// draw them lighter (#2C2C2E); apply to the rows (a Group of them works).
+	public func lhRows() -> some View {
+		listRowBackground(LHColor.raised)
+	}
+
+	/// A sheet in the desktop's look (apply to the sheet's root view).
+	public func lhSheet() -> some View {
+		presentationBackground(LHColor.bg)
+	}
+}
+
+extension LHFonts {
+	/// UIKit's navigation bars: CMU Serif bold titles in the ink color,
+	/// scaling with Dynamic Type. Call once at launch, after `register()`.
+	@MainActor public static func styleNavigationBars() {
+		func title(_ size: CGFloat, _ style: UIFont.TextStyle) -> UIFont {
+			let descriptor = UIFontDescriptor(fontAttributes: [.family: titleFamily])
+			return UIFontMetrics(forTextStyle: style).scaledFont(for: UIFont(descriptor: descriptor, size: size))
+		}
+		let ink = UIColor(red: 0xE6 / 255, green: 0xE6 / 255, blue: 0xE6 / 255, alpha: 1)
+		let bar = UINavigationBar.appearance()
+		bar.largeTitleTextAttributes = [.font: title(34, .largeTitle), .foregroundColor: ink]
+		bar.titleTextAttributes = [.font: title(17, .headline), .foregroundColor: ink]
+	}
+}

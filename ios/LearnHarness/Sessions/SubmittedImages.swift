@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// Images a learner submitted (a plugin's drawing): small previews, tap for
@@ -47,7 +48,7 @@ private struct SubmittedImagePreview: View {
 				.accessibilityLabel("Submitted image")
 				.accessibilityHint("Opens it full screen")
 			} else if failed {
-				Label("Image unavailable", systemImage: "photo").font(.callout).foregroundStyle(.secondary)
+				Label("Image unavailable", systemImage: "photo").font(LHFont.prose(.callout)).foregroundStyle(.secondary)
 			} else {
 				ProgressView().frame(width: Self.maxHeight, height: Self.maxHeight * 0.66)
 			}

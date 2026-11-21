@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// The custom OpenAI-compatible endpoint (web CustomEndpointEditor): base
@@ -30,25 +31,29 @@ struct CustomEndpointView: View {
 
 	var body: some View {
 		Form {
-			if let loaded {
-				connection(loaded)
-				if loaded.isConfigured, !loaded.models.isEmpty { limits(loaded) }
-				if error != nil || pinsError != nil {
-					Section {
-						Button("Reload Configuration") { Task { await load() } }
+			Group {
+				if let loaded {
+					connection(loaded)
+					if loaded.isConfigured, !loaded.models.isEmpty { limits(loaded) }
+					if error != nil || pinsError != nil {
+						Section {
+							Button("Reload Configuration") { Task { await load() } }
+						}
 					}
+				} else if loadFailed {
+					ContentUnavailableView {
+						Label("Unable to load custom configuration.", systemImage: "exclamationmark.triangle")
+					} actions: {
+						Button("Retry") { Task { await load() } }.buttonStyle(.bordered)
+					}
+				} else {
+					ProgressView().frame(maxWidth: .infinity)
 				}
-			} else if loadFailed {
-				ContentUnavailableView {
-					Label("Unable to load custom configuration.", systemImage: "exclamationmark.triangle")
-				} actions: {
-					Button("Retry") { Task { await load() } }.buttonStyle(.bordered)
-				}
-			} else {
-				ProgressView().frame(maxWidth: .infinity)
 			}
+			.lhRows()
 		}
 		.navigationTitle("Custom Endpoint")
+		.lhScreen()
 		.navigationBarTitleDisplayMode(.inline)
 		.task { if loaded == nil { await load() } }
 		.onChange(of: authMode) { _, mode in
@@ -65,11 +70,11 @@ struct CustomEndpointView: View {
 				.keyboardType(.URL)
 				.textInputAutocapitalization(.never)
 				.autocorrectionDisabled()
-				.font(.body.monospaced())
+				.font(LHFont.mono(.body))
 			TextField("Model IDs, comma-separated — optional, needed when the endpoint has no /models list", text: $manualModels, axis: .vertical)
 				.textInputAutocapitalization(.never)
 				.autocorrectionDisabled()
-				.font(.body.monospaced())
+				.font(LHFont.mono(.body))
 			Picker("Authentication", selection: $authMode) {
 				Text("Keyless").tag("keyless")
 				Text("API key").tag("apiKey")
@@ -87,11 +92,11 @@ struct CustomEndpointView: View {
 				.disabled(busy || pinsBusy || keySource == "env")
 				if keySource == "env" {
 					Text("Environment supplies the effective key. Change the environment to replace it.")
-						.font(.footnote).foregroundStyle(.secondary)
+						.font(LHFont.prose(.footnote)).foregroundStyle(.secondary)
 				}
 				if keyPresent, changedTarget || keyReuseRequired {
 					Toggle("Allow reuse of the effective existing key for this URL", isOn: $reuseKey)
-						.font(.footnote)
+						.font(LHFont.prose(.footnote))
 				}
 			}
 		} header: {
@@ -262,8 +267,8 @@ private struct PinRow: View {
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 8) {
-			Text(model.id).font(.footnote.monospaced())
-			Text(source).font(.caption).foregroundStyle(.secondary)
+			Text(model.id).font(LHFont.mono(.footnote))
+			Text(source).font(LHFont.prose(.caption)).foregroundStyle(.secondary)
 			HStack {
 				TextField(String(model.context ?? CustomProviderStatus.defaultContextWindow), text: $draft.context)
 					.keyboardType(.numberPad)
@@ -273,13 +278,13 @@ private struct PinRow: View {
 					.accessibilityLabel("\(model.id) max output tokens")
 			}
 			.textFieldStyle(.roundedBorder)
-			.font(.footnote.monospaced())
+			.font(LHFont.mono(.footnote))
 			Picker("Reasoning effort", selection: $draft.reasoning) {
 				Text("Use reported").tag("")
 				Text("Supported").tag("on")
 				Text("Not supported").tag("off")
 			}
-			.font(.footnote)
+			.font(LHFont.prose(.footnote))
 		}
 	}
 

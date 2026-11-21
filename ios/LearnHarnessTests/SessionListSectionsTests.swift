@@ -85,4 +85,18 @@ struct PlanProgressTests {
 		#expect(PlanProgress.subtitle(kind: .teach, phase: .plan, plan: nil) == "Planning")
 		#expect(PlanProgress.subtitle(kind: .teach, phase: nil, plan: nil) == "Teaching")
 	}
+
+	@Test func theDiagramUsesTheDarkPlanLook() throws {
+		let source = PlanDiagram.mermaid(try plan(nodes: 3, current: "n1", visited: ["n0"]))
+		#expect(source.contains("n0[\"N0\"]:::visited"))
+		#expect(source.contains("n1[\"N1\"]:::current"))
+		#expect(source.contains("n2[\"N2\"]:::upcoming"))
+		#expect(source.contains("classDef current fill:#1C1C1C"))
+		// Mermaid's parser refuses parentheses in a classDef: the glow is page CSS.
+		#expect(!source.contains("drop-shadow"))
+		#expect(PlanDiagram.style.css.contains(".node.current") && PlanDiagram.style.css.contains("url(#lh-glow)"))
+		#expect(PlanDiagram.style.svgDefs.contains(#"id="lh-glow""#) && PlanDiagram.style.svgDefs.contains("#EAB308"))
+		#expect(source.contains("classDef upcoming fill:#141414,stroke:#434343,color:#8D8D8D"))
+		#expect(!source.contains("#fde68a"))
+	}
 }

@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// A node's detail (web detail card): name, statement, the reasoning chains
@@ -18,33 +19,38 @@ struct NodeDetailSheet: View {
 	var body: some View {
 		NavigationStack {
 			List {
-				Section {
-					Text(node.statement).textSelection(.enabled)
-				}
-				if !supportedBy.isEmpty {
-					Section("Supported by") {
-						ForEach(supportedBy) { chain in ChainLine(chain: chain, snapshot: snapshot, current: node.id, onSelect: onSelectNode) }
+				Group {
+					Section {
+						Text(node.statement).textSelection(.enabled)
+					}
+					if !supportedBy.isEmpty {
+						Section("Supported by") {
+							ForEach(supportedBy) { chain in ChainLine(chain: chain, snapshot: snapshot, current: node.id, onSelect: onSelectNode) }
+						}
+					}
+					if !leadsTo.isEmpty {
+						Section("Leads to") {
+							ForEach(leadsTo) { chain in ChainLine(chain: chain, snapshot: snapshot, current: node.id, onSelect: onSelectNode) }
+						}
+					}
+					Section("Sessions") {
+						if sources.isEmpty {
+							Text("No sessions recorded.").foregroundStyle(.secondary)
+						}
+						ForEach(sources, id: \.self) { source in sourceRow(source) }
+					}
+					Section {
+						Button("Delete node", systemImage: "trash", role: .destructive) { confirmDelete = true }
+							.disabled(deleting || model.offline)
+					} footer: {
+						if let error { Text(error).foregroundStyle(.red) }
 					}
 				}
-				if !leadsTo.isEmpty {
-					Section("Leads to") {
-						ForEach(leadsTo) { chain in ChainLine(chain: chain, snapshot: snapshot, current: node.id, onSelect: onSelectNode) }
-					}
-				}
-				Section("Sessions") {
-					if sources.isEmpty {
-						Text("No sessions recorded.").foregroundStyle(.secondary)
-					}
-					ForEach(sources, id: \.self) { source in sourceRow(source) }
-				}
-				Section {
-					Button("Delete node", systemImage: "trash", role: .destructive) { confirmDelete = true }
-						.disabled(deleting || model.offline)
-				} footer: {
-					if let error { Text(error).foregroundStyle(.red) }
-				}
+				.lhRows()
 			}
 			.navigationTitle(node.name)
+			.lhScreen()
+			.lhSheet()
 			.navigationBarTitleDisplayMode(.inline)
 			.alert("Delete node?", isPresented: $confirmDelete) {
 				Button("Cancel", role: .cancel) {}
@@ -115,7 +121,7 @@ struct ChainLine: View {
 		let name = snapshot.propositions.first { $0.id == id }?.name ?? "Deleted node"
 		return Button { onSelect(id) } label: {
 			Text(name)
-				.font(.callout.weight(id == current ? .semibold : .regular))
+				.font(LHFont.prose(.callout).weight(id == current ? .semibold : .regular))
 				.padding(.horizontal, 8)
 				.padding(.vertical, 3)
 				.overlay(Capsule().strokeBorder(Color.secondary.opacity(0.4)))

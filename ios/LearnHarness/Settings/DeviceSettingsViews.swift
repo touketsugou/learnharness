@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// The dictation engine: a preference stored on this iPhone.
@@ -23,6 +24,7 @@ struct DictationSettingsView: View {
 			}
 		}
 		.navigationTitle("Dictation")
+		.lhScreen()
 	}
 }
 
@@ -43,6 +45,7 @@ struct ServerView: View {
 			}
 		}
 		.navigationTitle("Server")
+		.lhScreen()
 		.confirmationDialog("Sign out of this server?", isPresented: $confirming, titleVisibility: .visible) {
 			Button("Sign Out", role: .destructive) { Task { await app.signOut() } }
 		}

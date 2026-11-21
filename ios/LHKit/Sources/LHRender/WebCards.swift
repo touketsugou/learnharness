@@ -14,11 +14,15 @@ public struct WebCardContent: Equatable, Sendable {
 	public var appScripts: [String]
 	/// Allow scripts authored by the page itself (interactive demos).
 	public var pageScripts: Bool
+	/// Content wider than the card scrolls sideways (the card is still as
+	/// tall as its content).
+	public var scrollsHorizontally: Bool
 
-	public init(html: String, appScripts: [String] = [], pageScripts: Bool = false) {
+	public init(html: String, appScripts: [String] = [], pageScripts: Bool = false, scrollsHorizontally: Bool = false) {
 		self.html = html
 		self.appScripts = appScripts
 		self.pageScripts = pageScripts
+		self.scrollsHorizontally = scrollsHorizontally
 	}
 }
 
@@ -81,7 +85,11 @@ struct WebCardRepresentable: UIViewRepresentable {
 		webView.isOpaque = false
 		webView.backgroundColor = .clear
 		webView.scrollView.backgroundColor = .clear
-		webView.scrollView.isScrollEnabled = content.pageScripts
+		webView.scrollView.isScrollEnabled = content.pageScripts || content.scrollsHorizontally
+		if content.scrollsHorizontally {
+			webView.scrollView.alwaysBounceVertical = false
+			webView.scrollView.showsVerticalScrollIndicator = false
+		}
 		webView.navigationDelegate = context.coordinator
 		context.coordinator.load(content, into: webView)
 		return webView
@@ -170,13 +178,55 @@ enum MermaidAsset {
 		.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
 }
 
+/// How a Mermaid diagram is drawn. `standard` is the transcript's: the
+/// library's own dark theme, shrunk to fit the card.
+public struct MermaidStyle: Equatable, Sendable {
+	/// Mermaid `themeVariables` as a JSON object (with the `base` theme);
+	/// nil uses the library's dark theme.
+	public var themeVariables: String?
+	/// Draw text in the app's prose face (Source Sans 3), embedded into the
+	/// page; the diagram waits for it so boxes are measured in it.
+	public var proseFont: Bool
+	/// Keep the diagram at its natural size; wider than the card, it
+	/// scrolls sideways instead of shrinking.
+	public var naturalSize: Bool
+	/// Extra page CSS, for styles Mermaid's own syntax can't carry (a
+	/// `classDef` refuses the parentheses of a filter, for one).
+	public var css: String
+	/// SVG definitions (`<filter>`, ...) placed on the page for `css` to use
+	/// by `url(#id)`: WebKit draws no CSS filter function, such as
+	/// `drop-shadow()`, on an element inside an SVG.
+	public var svgDefs: String
+
+	public init(themeVariables: String? = nil, proseFont: Bool = false, naturalSize: Bool = false, css: String = "", svgDefs: String = "") {
+		self.themeVariables = themeVariables
+		self.proseFont = proseFont
+		self.naturalSize = naturalSize
+		self.css = css
+		self.svgDefs = svgDefs
+	}
+
+	public static let standard = MermaidStyle()
+}
+
+enum ProseFontAsset {
+	/// Source Sans 3 as a CSS data URL (nil when the file is missing).
+	static let dataURL: String? = Bundle.module.url(forResource: "SourceSans3[wght]", withExtension: "ttf", subdirectory: "Fonts")
+		.flatMap { try? Data(contentsOf: $0) }
+		.map { "data:font/ttf;base64," + $0.base64EncodedString() }
+}
+
 /// A ```mermaid fence rendered with the vendored Mermaid library (strict
 /// security level, no page scripts); falls back to the source as code.
 public struct MermaidView: View {
 	let source: String
+	let style: MermaidStyle
 	@Environment(\.colorScheme) private var colorScheme
 
-	public init(source: String) { self.source = source }
+	public init(source: String, style: MermaidStyle = .standard) {
+		self.source = source
+		self.style = style
+	}
 
 	public var body: some View {
 		if let library = MermaidAsset.source {
@@ -188,21 +238,41 @@ public struct MermaidView: View {
 	}
 
 	private func content(library: String) -> WebCardContent {
-		let theme = colorScheme == .dark ? "dark" : "default"
-		let run = """
-		mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: '\(theme)' });
+		let font = style.proseFont ? ProseFontAsset.dataURL : nil
+		var config = ["startOnLoad: false", "securityLevel: 'strict'"]
+		if let variables = style.themeVariables {
+			config.append("theme: 'base'")
+			config.append("themeVariables: \(variables)")
+		} else {
+			config.append("theme: '\(colorScheme == .dark ? "dark" : "default")'")
+		}
+		if font != nil { config.append("fontFamily: \"'LH Prose', sans-serif\"") }
+		if style.naturalSize { config.append("flowchart: { useMaxWidth: false }") }
+		let render = """
 		mermaid.run({ querySelector: '.mermaid' }).catch((error) => {
 			const pre = document.createElement('pre');
 			pre.textContent = String(error && error.message || error);
 			document.body.appendChild(pre);
 		});
 		"""
+		let run = """
+		mermaid.initialize({ \(config.joined(separator: ", ")) });
+		\(font != nil ? "document.fonts.load(\"16px 'LH Prose'\").finally(() => { \(render) });" : render)
+		"""
+		var css = style.naturalSize
+			? ".mermaid { margin: 0; width: max-content; min-width: 100%; text-align: center; } svg { max-width: none; }"
+			: ".mermaid { display: flex; justify-content: center; margin: 0; } svg { max-width: 100%; height: auto; }"
+		if !style.css.isEmpty { css += " " + style.css }
+		if let font {
+			css += " @font-face { font-family: 'LH Prose'; src: url(\(font)) format('truetype'); font-weight: 200 900; }"
+		}
+		let defs = style.svgDefs.isEmpty ? "" : "<svg width=\"0\" height=\"0\" style=\"position:absolute\" aria-hidden=\"true\"><defs>\(style.svgDefs)</defs></svg>"
 		let html = WebDocument.page(
-			body: "<pre class=\"mermaid\">\(WebDocument.escape(source))</pre>",
+			body: defs + "<pre class=\"mermaid\">\(WebDocument.escape(source))</pre>",
 			pageScripts: false,
-			extraStyle: ".mermaid { display: flex; justify-content: center; margin: 0; } svg { max-width: 100%; height: auto; }"
+			extraStyle: css
 		)
-		return WebCardContent(html: html, appScripts: [library, run])
+		return WebCardContent(html: html, appScripts: [library, run], scrollsHorizontally: style.naturalSize)
 	}
 }
 

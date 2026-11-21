@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// The chains & sources manager (web chain table): folders → sources →
@@ -39,13 +40,16 @@ struct SourcesView: View {
 			Group {
 				if let tree, let snapshot = model.snapshot {
 					List {
-						if query.trimmingCharacters(in: .whitespaces).isEmpty {
-							folderContents(nil, tree: tree, snapshot: snapshot)
-						} else {
-							let hits = SourceTree.sorted(tree.searched(query, snapshot: snapshot), by: sort, ascending: ascending)
-							if hits.isEmpty { Text("No matching chains.").foregroundStyle(.secondary) }
-							ForEach(hits) { group in sourceRow(group, snapshot: snapshot, expanded: true) }
+						Group {
+							if query.trimmingCharacters(in: .whitespaces).isEmpty {
+								folderContents(nil, tree: tree, snapshot: snapshot)
+							} else {
+								let hits = SourceTree.sorted(tree.searched(query, snapshot: snapshot), by: sort, ascending: ascending)
+								if hits.isEmpty { Text("No matching chains.").foregroundStyle(.secondary) }
+								ForEach(hits) { group in sourceRow(group, snapshot: snapshot, expanded: true) }
+							}
 						}
+						.lhRows()
 					}
 					.listStyle(.sidebar)
 					.safeAreaInset(edge: .top, spacing: 0) { home?.status }
@@ -58,6 +62,8 @@ struct SourcesView: View {
 			}
 			.searchable(text: $query, prompt: "Search chains")
 			.navigationTitle(home == nil ? "Chains & sources" : "Graph")
+			.lhScreen()
+			.lhSheet()
 			.navigationBarTitleDisplayMode(.inline)
 			.toolbar { toolbar }
 			.alert(naming?.title ?? "", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } }), presenting: naming) { task in
@@ -121,7 +127,7 @@ struct SourcesView: View {
 				}
 				Spacer()
 				if group.nodeCount > 0 {
-					Text("\(group.nodeCount)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+					Text("\(group.nodeCount)").font(LHFont.prose(.caption).monospacedDigit()).foregroundStyle(.secondary)
 				}
 			}
 		}
@@ -141,11 +147,11 @@ struct SourcesView: View {
 				}
 				ForEach(group.singletons) { proposition in
 					DisclosureGroup {
-						Text(proposition.statement).font(.callout).foregroundStyle(.secondary)
+						Text(proposition.statement).font(LHFont.prose(.callout)).foregroundStyle(.secondary)
 					} label: {
 						Button(proposition.name) { onShowNode(proposition.id) }
 							.buttonStyle(.plain)
-							.font(.callout)
+							.font(LHFont.prose(.callout))
 							.padding(.horizontal, 8)
 							.padding(.vertical, 3)
 							.overlay(Capsule().strokeBorder(Color.secondary.opacity(0.4)))
@@ -160,8 +166,8 @@ struct SourcesView: View {
 	private func statement(_ id: String, snapshot: GraphSnapshot) -> some View {
 		let node = snapshot.propositions.first { $0.id == id }
 		return VStack(alignment: .leading, spacing: 2) {
-			Text(node?.name ?? "Deleted node").font(.callout.weight(.medium))
-			Text(node?.statement ?? "").font(.callout).foregroundStyle(.secondary)
+			Text(node?.name ?? "Deleted node").font(LHFont.prose(.callout).weight(.medium))
+			Text(node?.statement ?? "").font(LHFont.prose(.callout)).foregroundStyle(.secondary)
 		}
 	}
 
@@ -220,7 +226,7 @@ struct SourcesView: View {
 		ToolbarItemGroup(placement: .bottomBar) {
 			if selecting {
 				let count = selectedSources.count + selectedFolders.count
-				Text(count == 0 ? "Select sources or folders" : "\(count) selected").font(.footnote).foregroundStyle(.secondary)
+				Text(count == 0 ? "Select sources or folders" : "\(count) selected").font(LHFont.prose(.footnote)).foregroundStyle(.secondary)
 				Spacer()
 				Button("Delete", role: .destructive) { deleting = true }
 					.disabled(count == 0)
@@ -337,10 +343,15 @@ private struct MoveSheet: View {
 	var body: some View {
 		NavigationStack {
 			List {
-				destination(nil, name: "Top level", depth: 0)
-				folders(in: nil, depth: 0)
+				Group {
+					destination(nil, name: "Top level", depth: 0)
+					folders(in: nil, depth: 0)
+				}
+				.lhRows()
 			}
 			.navigationTitle("Move to")
+			.lhScreen()
+			.lhSheet()
 			.navigationBarTitleDisplayMode(.inline)
 			.toolbar {
 				ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -403,31 +414,36 @@ private struct DeleteSourcesSheet: View {
 	var body: some View {
 		NavigationStack {
 			Form {
-				Section {
-					Text("Delete selected sources and folders?").font(.headline).foregroundStyle(.red)
-					let names = sources.map(\.label) + folders.map(\.name)
-					Text(names.prefix(8).joined(separator: ", ") + (names.count > 8 ? ", and \(names.count - 8) more" : ""))
-						.font(.callout.monospaced())
-					if !sources.isEmpty {
-						Text("Removes these sources’ contributions to propositions and reasoning chains. Knowledge supported by other sources survives; knowledge supported only by these sources is removed.")
-							.font(.callout).foregroundStyle(.secondary)
-					}
-					Text("Imported source records are removed, but original files on disk are never changed. Selected folders are removed only when empty; folders needed by kept sessions remain.")
-						.font(.footnote).foregroundStyle(.secondary)
-				}
-				if !chats.isEmpty {
+				Group {
 					Section {
-						Toggle("Also delete the \(chats.count) selected \(chats.count == 1 ? "session" : "sessions")", isOn: $deleteSessions)
-							.disabled(busy)
-					} footer: {
-						Text("Unchecked, conversations stay in their current folders and can be extracted again. Either way, their graph contributions and extraction coverage are cleared. Checking this also permanently deletes their messages and background jobs.")
+						Text("Delete selected sources and folders?").font(LHFont.prose(.headline).weight(.semibold)).foregroundStyle(.red)
+						let names = sources.map(\.label) + folders.map(\.name)
+						Text(names.prefix(8).joined(separator: ", ") + (names.count > 8 ? ", and \(names.count - 8) more" : ""))
+							.font(LHFont.mono(.callout))
+						if !sources.isEmpty {
+							Text("Removes these sources’ contributions to propositions and reasoning chains. Knowledge supported by other sources survives; knowledge supported only by these sources is removed.")
+								.font(LHFont.prose(.callout)).foregroundStyle(.secondary)
+						}
+						Text("Imported source records are removed, but original files on disk are never changed. Selected folders are removed only when empty; folders needed by kept sessions remain.")
+							.font(LHFont.prose(.footnote)).foregroundStyle(.secondary)
+					}
+					if !chats.isEmpty {
+						Section {
+							Toggle("Also delete the \(chats.count) selected \(chats.count == 1 ? "session" : "sessions")", isOn: $deleteSessions)
+								.disabled(busy)
+						} footer: {
+							Text("Unchecked, conversations stay in their current folders and can be extracted again. Either way, their graph contributions and extraction coverage are cleared. Checking this also permanently deletes their messages and background jobs.")
+						}
+					}
+					if let failure {
+						Section { Text(failure).foregroundStyle(.red) }
 					}
 				}
-				if let failure {
-					Section { Text(failure).foregroundStyle(.red) }
-				}
+				.lhRows()
 			}
 			.navigationTitle("Delete")
+			.lhScreen()
+			.lhSheet()
 			.navigationBarTitleDisplayMode(.inline)
 			.toolbar {
 				ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) }

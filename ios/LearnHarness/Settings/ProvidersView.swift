@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 
 /// Providers (web KeysSection): model API keys and the custom endpoint,
@@ -11,65 +12,69 @@ struct ProvidersView: View {
 
 	var body: some View {
 		List {
-			if let keys = model.keys {
-				let groups = KeyTable.classify(keys.keys, providers: keys.providers)
-				Section("Model API keys") {
-					ForEach(groups.providerRows) { status in
-						keyRow(status, label: KeyTable.providerLabel(status.id, providers: keys.providers) ?? status.info?.label ?? status.id)
-					}
-					if let custom = model.custom, custom.isConfigured {
-						NavigationLink {
-							CustomEndpointView(model: model)
-						} label: {
-							SettingLabel(title: "Custom endpoint", hint: custom.summary)
+			Group {
+				if let keys = model.keys {
+					let groups = KeyTable.classify(keys.keys, providers: keys.providers)
+					Section("Model API keys") {
+						ForEach(groups.providerRows) { status in
+							keyRow(status, label: KeyTable.providerLabel(status.id, providers: keys.providers) ?? status.info?.label ?? status.id)
+						}
+						if let custom = model.custom, custom.isConfigured {
+							NavigationLink {
+								CustomEndpointView(model: model)
+							} label: {
+								SettingLabel(title: "Custom endpoint", hint: custom.summary)
+							}
+						}
+						if keys.providers != nil {
+							NavigationLink {
+								AddProviderList(model: model, addable: groups.addable + (model.custom?.isConfigured == true ? [] : [KeyTable.customProvider]))
+							} label: {
+								Label("Add a provider", systemImage: "plus")
+							}
+						}
+						ForEach(groups.unknownRows) { status in
+							LabeledContent(status.id, value: status.masked ?? "")
+								.font(LHFont.mono(.footnote))
+								.opacity(0.4)
 						}
 					}
-					if keys.providers != nil {
-						NavigationLink {
-							AddProviderList(model: model, addable: groups.addable + (model.custom?.isConfigured == true ? [] : [KeyTable.customProvider]))
-						} label: {
-							Label("Add a provider", systemImage: "plus")
+					Section("Subscriptions") {
+						ForEach(SubscriptionProvider.all) { provider in
+							let status = model.subscription(provider.providerId)
+							HStack {
+								Text(provider.label)
+								Spacer()
+								Button(status.connectionId == nil ? "Connect" : "Manage…") { connecting = provider }
+									.buttonStyle(.bordered)
+									.controlSize(.small)
+									.disabled(!status.available || model.anySubscriptionPending)
+							}
 						}
 					}
-					ForEach(groups.unknownRows) { status in
-						LabeledContent(status.id, value: status.masked ?? "")
-							.font(.footnote.monospaced())
-							.opacity(0.4)
+					Section("External CLI") {
+						ClaudeCodeRows(model: model)
 					}
-				}
-				Section("Subscriptions") {
-					ForEach(SubscriptionProvider.all) { provider in
-						let status = model.subscription(provider.providerId)
-						HStack {
-							Text(provider.label)
-							Spacer()
-							Button(status.connectionId == nil ? "Connect" : "Manage…") { connecting = provider }
-								.buttonStyle(.bordered)
-								.controlSize(.small)
-								.disabled(!status.available || model.anySubscriptionPending)
-						}
+					Section {
+						ForEach(groups.toolRows.filter { $0.id == KeyTable.dictationID }) { keyRow($0, label: $0.info?.label ?? $0.id) }
+					} header: {
+						Text("Dictation")
+					} footer: {
+						Text("Create a [Deepgram API key](https://console.deepgram.com/) with the Member role or higher, then add it above.")
 					}
+					Section("Search") {
+						ForEach(groups.toolRows.filter { $0.id != KeyTable.dictationID }) { keyRow($0, label: $0.info?.label ?? $0.id) }
+					}
+				} else if let error = model.keysError {
+					ContentUnavailableView("Couldn’t load keys", systemImage: "exclamationmark.triangle", description: Text(error))
+				} else {
+					ProgressView().frame(maxWidth: .infinity)
 				}
-				Section("External CLI") {
-					ClaudeCodeRows(model: model)
-				}
-				Section {
-					ForEach(groups.toolRows.filter { $0.id == KeyTable.dictationID }) { keyRow($0, label: $0.info?.label ?? $0.id) }
-				} header: {
-					Text("Dictation")
-				} footer: {
-					Text("Create a [Deepgram API key](https://console.deepgram.com/) with the Member role or higher, then add it above.")
-				}
-				Section("Search") {
-					ForEach(groups.toolRows.filter { $0.id != KeyTable.dictationID }) { keyRow($0, label: $0.info?.label ?? $0.id) }
-				}
-			} else if let error = model.keysError {
-				ContentUnavailableView("Couldn’t load keys", systemImage: "exclamationmark.triangle", description: Text(error))
-			} else {
-				ProgressView().frame(maxWidth: .infinity)
 			}
+			.lhRows()
 		}
 		.navigationTitle("Providers")
+		.lhScreen()
 		.refreshable { await reload() }
 		.task { await reload() }
 		.sheet(item: $editing) { target in
@@ -92,7 +97,7 @@ struct ProvidersView: View {
 			editing = KeyEditTarget(id: status.id, label: label, docsUrl: status.info?.docsUrl, deletable: status.present && status.source == "file")
 		} label: {
 			LabeledContent(label) {
-				Text(KeyTable.statusLine(status)).font(.footnote.monospaced())
+				Text(KeyTable.statusLine(status)).font(LHFont.mono(.footnote))
 			}
 		}
 		.tint(.primary)
@@ -124,37 +129,42 @@ struct KeyEditSheet: View {
 	var body: some View {
 		NavigationStack {
 			Form {
-				Section {
-					SecureField("Paste key…", text: $value)
-						.focused($focused)
-						.onAppear { focused = true }
-						.textInputAutocapitalization(.never)
-						.autocorrectionDisabled()
-						.font(.body.monospaced())
-						.onSubmit { Task { await save() } }
-				} footer: {
-					VStack(alignment: .leading, spacing: 6) {
-						if let error { Text(error).foregroundStyle(.red) }
-						if let docs = target.docsUrl, let url = URL(string: docs) {
-							Link("Get a key ↗", destination: url)
-						}
-					}
-				}
-				if target.deletable {
+				Group {
 					Section {
-						Button("Delete Key", role: .destructive) {
-							Task {
-								busy = true
-								error = await model.deleteKey(target.id)
-								busy = false
-								if error == nil { dismiss() }
+						SecureField("Paste key…", text: $value)
+							.focused($focused)
+							.onAppear { focused = true }
+							.textInputAutocapitalization(.never)
+							.autocorrectionDisabled()
+							.font(LHFont.mono(.body))
+							.onSubmit { Task { await save() } }
+					} footer: {
+						VStack(alignment: .leading, spacing: 6) {
+							if let error { Text(error).foregroundStyle(.red) }
+							if let docs = target.docsUrl, let url = URL(string: docs) {
+								Link("Get a key ↗", destination: url)
 							}
 						}
-						.disabled(busy)
+					}
+					if target.deletable {
+						Section {
+							Button("Delete Key", role: .destructive) {
+								Task {
+									busy = true
+									error = await model.deleteKey(target.id)
+									busy = false
+									if error == nil { dismiss() }
+								}
+							}
+							.disabled(busy)
+						}
 					}
 				}
+				.lhRows()
 			}
 			.navigationTitle(target.label)
+			.lhScreen()
+			.lhSheet()
 			.navigationBarTitleDisplayMode(.inline)
 			.toolbar {
 				ToolbarItem(placement: .cancellationAction) {
@@ -197,20 +207,24 @@ private struct AddProviderList: View {
 
 	var body: some View {
 		List {
-			ForEach(filtered) { provider in
-				if provider.id == KeyTable.customProvider.id {
-					NavigationLink(provider.label) { CustomEndpointView(model: model) }
-				} else {
-					Button(provider.label) {
-						editing = KeyEditTarget(id: provider.envVar, label: provider.label, docsUrl: nil, deletable: false)
+			Group {
+				ForEach(filtered) { provider in
+					if provider.id == KeyTable.customProvider.id {
+						NavigationLink(provider.label) { CustomEndpointView(model: model) }
+					} else {
+						Button(provider.label) {
+							editing = KeyEditTarget(id: provider.envVar, label: provider.label, docsUrl: nil, deletable: false)
+						}
+						.tint(.primary)
 					}
-					.tint(.primary)
 				}
+				if filtered.isEmpty { Text("No providers match.").foregroundStyle(.secondary) }
 			}
-			if filtered.isEmpty { Text("No providers match.").foregroundStyle(.secondary) }
+			.lhRows()
 		}
 		.searchable(text: $query, prompt: "Search providers")
 		.navigationTitle("Add a Provider")
+		.lhScreen()
 		.navigationBarTitleDisplayMode(.inline)
 		.sheet(item: $editing) { target in
 			KeyEditSheet(target: target, model: model) { dismiss() }
@@ -254,7 +268,7 @@ private struct ClaudeCodeRows: View {
 		if enabled {
 			HStack {
 				Text(checking ? "Checking…" : status?.label ?? "Version could not be checked")
-					.font(.footnote)
+					.font(LHFont.prose(.footnote))
 					.foregroundStyle(.secondary)
 				Spacer()
 				Button("Check Again") { Task { await check() } }
@@ -267,7 +281,7 @@ private struct ClaudeCodeRows: View {
 				Text("Checks installation/version only—not authentication, model access, or quota. Claude Code controls billing. Requires v\(status?.minimumVersion ?? "2.1.259")+. [Setup ↗](https://code.claude.com/docs/en/setup)")
 				Text("Verify AI claims independently—they may be inaccurate, incomplete, misleading, or outdated.")
 			}
-			.font(.footnote)
+			.font(LHFont.prose(.footnote))
 			.foregroundStyle(.secondary)
 		}
 	}

@@ -43,6 +43,7 @@ private struct SessionContent: View {
 	/// A native message to bring into view once the transcript loads (from the graph).
 	@Binding var focus: String?
 	@State private var showPlan = false
+	@State private var showProviders = false
 	/// The transcript and dock's height, above the keyboard when it is up.
 	@State private var visibleHeight: CGFloat?
 	@State private var position = ScrollPosition()
@@ -96,7 +97,7 @@ private struct SessionContent: View {
 				SessionTitle(model: model) { showPlan = true }
 			}
 			ToolbarItemGroup(placement: .topBarTrailing) {
-				ModelMenu(model: model)
+				ModelMenu(model: model) { showProviders = true }
 				if let title = model.state?.title {
 					ShareLink(item: SessionMarkdown(title: title, load: model.markdownLoader), preview: SharePreview(title)) {
 						Image(systemName: "square.and.arrow.up")
@@ -106,6 +107,8 @@ private struct SessionContent: View {
 			}
 		}
 		.sheet(isPresented: $showPlan) { PlanSheet(model: model) }
+		// A key added there brings its models into the menu.
+		.sheet(isPresented: $showProviders, onDismiss: { Task { await model.refreshCatalog() } }) { ProvidersSheet() }
 	}
 }
 

@@ -1,4 +1,5 @@
 import LHAPI
+import LHRender
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -73,6 +74,7 @@ private struct GraphContent: View {
 			GraphStatusPills(model: model, noMatches: !query.trimmingCharacters(in: .whitespaces).isEmpty && scene?.nodes.isEmpty == true)
 		}
 		.navigationTitle("Graph")
+		.lhScreen()
 		.navigationBarTitleDisplayMode(.inline)
 		.searchable(text: $query, prompt: "Search nodes")
 		.toolbar {
@@ -234,7 +236,7 @@ private struct StatusPill: View {
 			if busy { ProgressView().controlSize(.mini) } else { Image(systemName: systemImage) }
 			Text(text)
 		}
-		.font(.caption)
+		.font(LHFont.prose(.caption))
 		.foregroundStyle(.secondary)
 		.padding(.horizontal, 10)
 		.padding(.vertical, 6)
@@ -249,12 +251,12 @@ private struct ImportMessages: View {
 		VStack(alignment: .leading, spacing: 6) {
 			ForEach(queue.messages) { message in
 				Text(message.text)
-					.font(.caption)
+					.font(LHFont.prose(.caption))
 					.foregroundStyle(message.isError ? .red : .secondary)
 					.frame(maxWidth: .infinity, alignment: .leading)
 			}
 			Button("Dismiss") { queue.clearMessages() }
-				.font(.caption)
+				.font(LHFont.prose(.caption))
 				.frame(maxWidth: .infinity, alignment: .trailing)
 		}
 		.padding(10)
